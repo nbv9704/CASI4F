@@ -1,4 +1,5 @@
 // server/controllers/minigames/luckyFiveController.js
+const mongoose              = require('mongoose');
 const User                  = require('../../models/User');
 const { randomInt }         = require('../../utils/random');
 const { recordGameHistory } = require('../../utils/history');
@@ -69,22 +70,46 @@ exports.luckyFive = async (req, res) => {
     const payoutColor  = betAmount * (colorMultipliers[colorMatches] || 0);
     const totalPayout  = payoutNumber + payoutColor;
 
-    // Update balance
-    user.balance = user.balance - betAmount + totalPayout;
-    await user.save();
+    // Calculate balance change
+    const delta = totalPayout - betAmount;
 
-    // Determine outcome
+    // ✅ Use MongoDB transaction for atomic balance update + history
+    const session = await mongoose.startSession();
+    let updatedBalance;
+    
+    try {
+      await session.withTransaction(async () => {
+        // Atomic balance update
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: { balance: delta } },
+          { new: true, session }
+        ).select('balance');
+
+        if (!updatedUser) {
+          throw new Error('User not found during transaction');
+        }
+
+        updatedBalance = updatedUser.balance;
+
+        // Determine outcome
+        const win = totalPayout > 0;
+        const outcome = win ? 'win' : 'lose';
+
+        // Record history within transaction
+        await recordGameHistory({
+          userId,
+          game: 'luckyfive',
+          betAmount,
+          outcome,
+          payout: totalPayout
+        }, session);
+      });
+    } finally {
+      await session.endSession();
+    }
+
     const win = totalPayout > 0;
-    const outcome = win ? 'win' : 'lose';
-
-    // Record history
-    await recordGameHistory({
-      userId,
-      game: 'luckyfive',
-      betAmount,
-      outcome,
-      payout: totalPayout
-    });
 
     // Send response (thêm win + amount cho notification wrapper)
     return res.json({
@@ -96,7 +121,7 @@ exports.luckyFive = async (req, res) => {
       payouts: { payoutNumber, payoutColor, totalPayout },
       win,                                   // ← thêm
       amount: win ? totalPayout : betAmount, // ← thêm
-      balance: user.balance
+      balance: updatedBalance
     });
   } catch (err) {
     console.error(err);

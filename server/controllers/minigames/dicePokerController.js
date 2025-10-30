@@ -1,4 +1,5 @@
 // server/controllers/minigames/dicePokerController.js
+const mongoose             = require('mongoose')
 const User                 = require('../../models/User')
 const { randomInt }        = require('../../utils/random')
 const { recordGameHistory } = require('../../utils/history')
@@ -73,16 +74,42 @@ exports.dicePoker = async (req, res) => {
     const hand       = evaluateHand(dice)
     const multiplier = HAND_MULTIPLIERS[hand] || 0
 
-    // Calculate payout and update balance
+    // Calculate payout and balance change
     const payout = betAmount * multiplier
-    user.balance = user.balance - betAmount + payout
-    await user.save()
+    const delta = payout - betAmount
 
-    // Determine outcome
-    const outcome = multiplier > 0 ? 'win' : 'lose'
+    // ✅ Use MongoDB transaction for atomic balance update + history
+    const session = await mongoose.startSession()
+    let updatedBalance
+    
+    try {
+      await session.withTransaction(async () => {
+        // Atomic balance update
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: { balance: delta } },
+          { new: true, session }
+        ).select('balance')
 
-    // Record to game history
-    await recordGameHistory({ userId, game: 'dicepoker', betAmount, outcome, payout })
+        if (!updatedUser) {
+          throw new Error('User not found during transaction')
+        }
+
+        updatedBalance = updatedUser.balance
+
+        // Determine outcome
+        const outcome = multiplier > 0 ? 'win' : 'lose'
+
+        // Record history within transaction
+        await recordGameHistory({ 
+          userId, game: 'dicepoker', betAmount, outcome, payout 
+        }, session)
+      })
+    } finally {
+      await session.endSession()
+    }
+
+    const win = multiplier > 0
 
     // Send response
     return res.json({
@@ -90,9 +117,9 @@ exports.dicePoker = async (req, res) => {
       dice,
       multiplier,
       payout,
-      win: amount => outcome === 'win',
-      amount: outcome === 'win' ? payout : betAmount,
-      balance: user.balance
+      win,
+      amount: win ? payout : betAmount,
+      balance: updatedBalance
     })
   } catch (err) {
     console.error(err)

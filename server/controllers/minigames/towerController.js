@@ -1,4 +1,5 @@
 // server/controllers/minigames/towerController.js
+const mongoose              = require('mongoose');
 const User                  = require('../../models/User');
 const { recordGameHistory } = require('../../utils/history');
 
@@ -69,14 +70,23 @@ exports.ascendTower = async (req, res) => {
   // Bust: lose everything (kết thúc ván -> thêm win & amount)
   if (!success) {
     towerGames.delete(userId);
-    // Record loss
-    await recordGameHistory({
-      userId,
-      game: 'tower',
-      betAmount: state.betAmount,
-      outcome: 'lose',
-      payout: 0
-    });
+
+    // ✅ Use transaction for history recording (no balance change - already deducted)
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await recordGameHistory({
+          userId,
+          game: 'tower',
+          betAmount: state.betAmount,
+          outcome: 'lose',
+          payout: 0
+        }, session);
+      });
+    } finally {
+      await session.endSession();
+    }
+
     return res.json({
       message: `You busted at level ${state.currentLevel + 1}.`,
       bustedLevel: state.currentLevel + 1,
@@ -93,23 +103,45 @@ exports.ascendTower = async (req, res) => {
   if (state.currentLevel >= MAX_LEVEL) {
     const multiplier = LEVEL_MULTIPLIERS[MAX_LEVEL];
     const payout     = state.betAmount * multiplier;
-    user.balance += payout;
-    await user.save();
+
+    // ✅ Use MongoDB transaction for atomic balance update + history
+    const session = await mongoose.startSession();
+    let updatedBalance;
+    
+    try {
+      await session.withTransaction(async () => {
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: { balance: payout } },
+          { new: true, session }
+        ).select('balance');
+
+        if (!updatedUser) {
+          throw new Error('User not found during transaction');
+        }
+
+        updatedBalance = updatedUser.balance;
+
+        await recordGameHistory({
+          userId,
+          game: 'tower',
+          betAmount: state.betAmount,
+          outcome: 'win',
+          payout
+        }, session);
+      });
+    } finally {
+      await session.endSession();
+    }
+
     towerGames.delete(userId);
-    // Record win
-    await recordGameHistory({
-      userId,
-      game: 'tower',
-      betAmount: state.betAmount,
-      outcome: 'win',
-      payout
-    });
+
     return res.json({
       message: `Congratulations! You reached level ${MAX_LEVEL}.`,
       level: MAX_LEVEL,
       multiplier,
       payout,
-      balance: user.balance,
+      balance: updatedBalance,
       win: true,
       amount: payout // để wrapper bắn "game_win"
     });
@@ -141,26 +173,44 @@ exports.cashoutTower = async (req, res) => {
   const multiplier = LEVEL_MULTIPLIERS[level] || 0;
   const payout     = state.betAmount * multiplier;
 
-  // Payout & end game
-  user.balance += payout;
-  await user.save();
-  towerGames.delete(userId);
+  // ✅ Use MongoDB transaction for atomic balance update + history
+  const session = await mongoose.startSession();
+  let updatedBalance;
+  
+  try {
+    await session.withTransaction(async () => {
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { $inc: { balance: payout } },
+        { new: true, session }
+      ).select('balance');
 
-  // Record win
-  await recordGameHistory({
-    userId,
-    game: 'tower',
-    betAmount: state.betAmount,
-    outcome: 'win',
-    payout
-  });
+      if (!updatedUser) {
+        throw new Error('User not found during transaction');
+      }
+
+      updatedBalance = updatedUser.balance;
+
+      await recordGameHistory({
+        userId,
+        game: 'tower',
+        betAmount: state.betAmount,
+        outcome: 'win',
+        payout
+      }, session);
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  towerGames.delete(userId);
 
   return res.json({
     message: `You cashed out at level ${level}.`,
     level,
     multiplier,
     payout,
-    balance: user.balance,
+    balance: updatedBalance,
     win: true,
     amount: payout // để wrapper bắn "game_win"
   });

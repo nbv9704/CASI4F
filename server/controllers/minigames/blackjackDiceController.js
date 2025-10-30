@@ -1,4 +1,5 @@
 // server/controllers/minigames/blackjackDiceController.js
+const mongoose = require('mongoose')
 const User = require('../../models/User')
 const { randomInt } = require('../../utils/random')
 const { recordGameHistory } = require('../../utils/history')
@@ -75,13 +76,21 @@ exports.hitBlackjackDice = async (req, res) => {
     blackjackGames.delete(userId)
     const user = await User.findById(userId)
 
-    await recordGameHistory({
-      userId,
-      game: 'blackjackdice',
-      betAmount: state.betAmount,
-      outcome: 'lose',
-      payout: 0
-    })
+    // ✅ Use transaction for history recording (no balance change - already deducted)
+    const session = await mongoose.startSession()
+    try {
+      await session.withTransaction(async () => {
+        await recordGameHistory({
+          userId,
+          game: 'blackjackdice',
+          betAmount: state.betAmount,
+          outcome: 'lose',
+          payout: 0
+        }, session)
+      })
+    } finally {
+      await session.endSession()
+    }
 
     return res.json({
       playerDice: state.playerDice,
@@ -128,26 +137,54 @@ exports.standBlackjackDice = async (req, res) => {
   if (dealerSum > 21) {
     outcome = 'win'
     payout  = state.betAmount * 2
-    user.balance += payout
   } else if (dealerSum > state.playerSum) {
     outcome = 'lose'
     payout  = 0
   } else {
     outcome = 'tie'
     payout  = state.betAmount
-    user.balance += payout
   }
 
-  await user.save()
-  blackjackGames.delete(userId)
+  // ✅ Use MongoDB transaction for atomic balance update + history
+  const session = await mongoose.startSession()
+  let updatedBalance
+  
+  try {
+    await session.withTransaction(async () => {
+      // Calculate balance change (win: add double bet, tie: refund bet, lose: nothing)
+      const delta = outcome === 'win' ? payout : outcome === 'tie' ? payout : 0
 
-  await recordGameHistory({
-    userId,
-    game: 'blackjackdice',
-    betAmount: state.betAmount,
-    outcome,
-    payout
-  })
+      if (delta > 0) {
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: { balance: delta } },
+          { new: true, session }
+        ).select('balance')
+
+        if (!updatedUser) {
+          throw new Error('User not found during transaction')
+        }
+
+        updatedBalance = updatedUser.balance
+      } else {
+        // No balance change for loss (already deducted at start)
+        const currentUser = await User.findById(userId).select('balance')
+        updatedBalance = currentUser.balance
+      }
+
+      await recordGameHistory({
+        userId,
+        game: 'blackjackdice',
+        betAmount: state.betAmount,
+        outcome,
+        payout
+      }, session)
+    })
+  } finally {
+    await session.endSession()
+  }
+
+  blackjackGames.delete(userId)
 
   // Chỉ thêm win/amount khi KHÔNG phải tie (tránh bắn "loss" nhầm)
   const response = {
@@ -157,7 +194,7 @@ exports.standBlackjackDice = async (req, res) => {
     dealerSum,
     outcome,
     payout,
-    balance: user.balance
+    balance: updatedBalance
   }
 
   if (outcome === 'win') {

@@ -1,4 +1,5 @@
 // server/controllers/minigames/coinflipController.js
+const mongoose = require('mongoose');
 const User = require('../../models/User');
 const { recordGameHistory } = require('../../utils/history');
 const fair = require('../../utils/fair');
@@ -41,20 +42,41 @@ exports.coinflip = async (req, res) => {
     const flip = fair.coinflip({ serverSeed, clientSeed, nonce });
     const win  = flip === side;
 
-    // Balance update
+    // Calculate payout
     const payout = win ? betAmount : 0;
     const delta  = win ? betAmount : -betAmount;
-    user.balance += delta;
-    await user.save();
 
-    // History
-    await recordGameHistory({
-      userId,
-      game: 'coinflip',
-      betAmount,
-      outcome: win ? 'win' : 'lose',
-      payout,
-    });
+    // ✅ Use MongoDB transaction for atomic balance update + history
+    const session = await mongoose.startSession();
+    let updatedBalance;
+    
+    try {
+      await session.withTransaction(async () => {
+        // Atomic balance update
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: { balance: delta } },
+          { new: true, session }
+        ).select('balance');
+
+        if (!updatedUser) {
+          throw new Error('User not found during transaction');
+        }
+
+        updatedBalance = updatedUser.balance;
+
+        // Record history within transaction
+        await recordGameHistory({
+          userId,
+          game: 'coinflip',
+          betAmount,
+          outcome: win ? 'win' : 'lose',
+          payout,
+        }, session);
+      });
+    } finally {
+      await session.endSession();
+    }
 
     // Response (amount = abs(delta) để withNotification wrapper dùng)
     return res.json({
@@ -65,7 +87,7 @@ exports.coinflip = async (req, res) => {
       win,
       payout,
       amount: Math.abs(delta),
-      balance: user.balance,
+      balance: updatedBalance,
       // verify data
       seedHash,    // commit
       serverSeed,  // reveal (solo trả luôn)

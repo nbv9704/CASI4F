@@ -1,4 +1,5 @@
 // server/controllers/minigames/rouletteController.js
+const mongoose              = require('mongoose');
 const User                  = require('../../models/User');
 const { randomInt }         = require('../../utils/random');
 const { recordGameHistory } = require('../../utils/history');
@@ -78,24 +79,42 @@ exports.roulette = async (req, res) => {
       payout = betAmount * MULTIPLIER_COLOR;
     }
 
-    // 6. Update balance
-    if (win) {
-      user.balance += payout;
-    } else {
-      user.balance -= betAmount;
+    // 6. Calculate balance change
+    const delta = win ? payout : -betAmount;
+
+    // ✅ Use MongoDB transaction for atomic balance update + history
+    const session = await mongoose.startSession();
+    let updatedBalance;
+    
+    try {
+      await session.withTransaction(async () => {
+        // Atomic balance update
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: { balance: delta } },
+          { new: true, session }
+        ).select('balance');
+
+        if (!updatedUser) {
+          throw new Error('User not found during transaction');
+        }
+
+        updatedBalance = updatedUser.balance;
+
+        // Record history within transaction
+        await recordGameHistory({
+          userId,
+          game: 'roulette',
+          betAmount,
+          outcome: win ? 'win' : 'lose',
+          payout:  win ? payout : 0
+        }, session);
+      });
+    } finally {
+      await session.endSession();
     }
-    await user.save();
 
-    // 7. Record to game history
-    await recordGameHistory({
-      userId,
-      game: 'roulette',
-      betAmount,
-      outcome: win ? 'win' : 'lose',
-      payout:  win ? payout : 0
-    });
-
-    // 8. Respond (add `amount` for notification wrapper)
+    // 7. Respond (add `amount` for notification wrapper)
     return res.json({
       message: win
         ? `You won! The wheel landed on ${spinResult} (${spinColor}), payout ${payout}.`
@@ -104,7 +123,7 @@ exports.roulette = async (req, res) => {
       win,
       payout,
       amount: win ? payout : betAmount, // ← added: used by withNotification()
-      balance: user.balance
+      balance: updatedBalance
     });
   } catch (err) {
     console.error(err);

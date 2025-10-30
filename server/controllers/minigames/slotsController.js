@@ -1,4 +1,5 @@
 // server/controllers/minigames/slotsController.js
+const mongoose              = require('mongoose');
 const User                  = require('../../models/User');
 const { randomInt }         = require('../../utils/random');
 const { recordGameHistory } = require('../../utils/history');
@@ -49,10 +50,7 @@ exports.slots = async (req, res) => {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    // 3. Trừ stake ngay
-    user.balance -= betAmount;
-
-    // 4. Tạo ma trận 3x3
+    // 3. Tạo ma trận 3x3
     const grid = [[], [], []];
     for (let r = 0; r < 3; r++) {
       for (let c = 0; c < 3; c++) {
@@ -60,7 +58,7 @@ exports.slots = async (req, res) => {
       }
     }
 
-    // 5. Kiểm tra tất cả đường LINES và cộng multiplier
+    // 4. Kiểm tra tất cả đường LINES và cộng multiplier
     let totalMultiplier = 0;
     const winningLines  = [];
 
@@ -75,21 +73,43 @@ exports.slots = async (req, res) => {
       }
     });
 
-    // 6. Tính payout và cập nhật balance
+    // 5. Calculate payout and balance change
     const payout = betAmount * totalMultiplier;
-    user.balance += payout;
-    await user.save();
+    const delta = payout - betAmount;
 
-    // 7. Record to game history
-    await recordGameHistory({
-      userId,
-      game: 'slots',
-      betAmount,
-      outcome: totalMultiplier > 0 ? 'win' : 'lose',
-      payout
-    });
+    // ✅ Use MongoDB transaction for atomic balance update + history
+    const session = await mongoose.startSession();
+    let updatedBalance;
+    
+    try {
+      await session.withTransaction(async () => {
+        // Atomic balance update
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: { balance: delta } },
+          { new: true, session }
+        ).select('balance');
 
-    // 8. Chuẩn bị response (thêm `amount` cho withNotification)
+        if (!updatedUser) {
+          throw new Error('User not found during transaction');
+        }
+
+        updatedBalance = updatedUser.balance;
+
+        // Record history within transaction
+        await recordGameHistory({
+          userId,
+          game: 'slots',
+          betAmount,
+          outcome: totalMultiplier > 0 ? 'win' : 'lose',
+          payout
+        }, session);
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    // 6. Chuẩn bị response (thêm `amount` cho withNotification)
     const emojiGrid = grid.map(row => row.map(cell => cell.emoji));
     const win = totalMultiplier > 0;
 
@@ -99,7 +119,7 @@ exports.slots = async (req, res) => {
       totalMultiplier,
       payout,
       amount: win ? payout : betAmount, // ← thêm để wrapper đọc
-      balance: user.balance,
+      balance: updatedBalance,
       winningLines
     });
   } catch (err) {

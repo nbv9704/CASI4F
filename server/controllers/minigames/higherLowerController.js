@@ -1,4 +1,5 @@
 // server/controllers/minigames/higherLowerController.js
+const mongoose              = require('mongoose')
 const User                  = require('../../models/User')
 const { randomInt }         = require('../../utils/random')
 const { recordGameHistory } = require('../../utils/history')
@@ -48,30 +49,61 @@ exports.higherLower = async (req, res) => {
       win = true
     }
 
-    // Compute payout and update streak/balance
+    // Compute payout and streak
     let payout = 0
+    let newStreak = user.higherLowerStreak || 0
+    
     if (tie) {
-      user.higherLowerStreak = 0
+      newStreak = 0
     } else if (win) {
-      user.higherLowerStreak = (user.higherLowerStreak || 0) + 1
-      const multiplier = user.higherLowerStreak * MULTIPLIER_STEP
+      newStreak += 1
+      const multiplier = newStreak * MULTIPLIER_STEP
       payout = betAmount * multiplier
-      user.balance += payout
     } else {
       // lose
-      user.higherLowerStreak = 0
-      user.balance -= betAmount
+      newStreak = 0
     }
 
-    // Save last number for next round
-    user.higherLowerLastNumber = next
-    await user.save()
+    // Calculate balance change
+    const delta = tie ? 0 : win ? payout : -betAmount
 
-    // Determine outcome label
-    const outcome = tie ? 'tie' : win ? 'win' : 'lose'
+    // ✅ Use MongoDB transaction for atomic balance + state update + history
+    const session = await mongoose.startSession()
+    let updatedBalance, updatedStreak
+    
+    try {
+      await session.withTransaction(async () => {
+        // Atomic update: balance, streak, and last number
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { 
+            $inc: { balance: delta },
+            $set: { 
+              higherLowerStreak: newStreak,
+              higherLowerLastNumber: next
+            }
+          },
+          { new: true, session }
+        ).select('balance higherLowerStreak')
 
-    // Record to game history
-    await recordGameHistory({ userId, game: 'higherlower', betAmount, outcome, payout })
+        if (!updatedUser) {
+          throw new Error('User not found during transaction')
+        }
+
+        updatedBalance = updatedUser.balance
+        updatedStreak = updatedUser.higherLowerStreak
+
+        // Determine outcome label
+        const outcome = tie ? 'tie' : win ? 'win' : 'lose'
+
+        // Record history within transaction
+        await recordGameHistory({ 
+          userId, game: 'higherlower', betAmount, outcome, payout 
+        }, session)
+      })
+    } finally {
+      await session.endSession()
+    }
 
     // Tính amount cho notification: nếu thắng lấy payout, không thắng lấy betAmount
     const amount = win ? payout : betAmount
@@ -81,17 +113,17 @@ exports.higherLower = async (req, res) => {
       message: tie
         ? `Tie! Both were ${initial}.`
         : win
-          ? `You won! ${initial} → ${next}, streak ${user.higherLowerStreak}, payout ${payout}.`
+          ? `You won! ${initial} → ${next}, streak ${updatedStreak}, payout ${payout}.`
           : `You lost. ${initial} → ${next}.`,
       initial,
       result: next,
       guess,
       tie,
       win,
-      streak: user.higherLowerStreak,
+      streak: updatedStreak,
       payout,
       amount,              // ← thêm trường amount
-      balance: user.balance
+      balance: updatedBalance
     })
   } catch (err) {
     console.error(err)

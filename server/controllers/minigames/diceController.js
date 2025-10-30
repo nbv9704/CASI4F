@@ -1,4 +1,5 @@
 // server/controllers/minigames/diceController.js
+const mongoose = require('mongoose');
 const User = require('../../models/User');
 const { recordGameHistory } = require('../../utils/history');
 const fair = require('../../utils/fair');
@@ -53,16 +54,37 @@ exports.dice = async (req, res) => {
     const multiplier = MULTIPLIERS[sides];
     const payout     = win ? betAmount * multiplier : 0;
 
-    // Update balance (delta = payout - bet)
+    // Calculate balance change
     const delta = win ? (payout - betAmount) : -betAmount;
-    user.balance += delta;
-    await user.save();
 
-    // History
-    await recordGameHistory({
-      userId, game: 'dice', betAmount,
-      outcome: win ? 'win' : 'lose', payout
-    });
+    // ✅ Use MongoDB transaction for atomic balance update + history
+    const session = await mongoose.startSession();
+    let updatedBalance;
+    
+    try {
+      await session.withTransaction(async () => {
+        // Atomic balance update
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: { balance: delta } },
+          { new: true, session }
+        ).select('balance');
+
+        if (!updatedUser) {
+          throw new Error('User not found during transaction');
+        }
+
+        updatedBalance = updatedUser.balance;
+
+        // Record history within transaction
+        await recordGameHistory({
+          userId, game: 'dice', betAmount,
+          outcome: win ? 'win' : 'lose', payout
+        }, session);
+      });
+    } finally {
+      await session.endSession();
+    }
 
     // Respond (UI không cần show verify; nhưng trả ra để có thể kiểm tra)
     return res.json({
@@ -71,7 +93,7 @@ exports.dice = async (req, res) => {
         : `You lost. You rolled ${result} on a d${sides}.`,
       result, sides, win, multiplier, payout,
       amount: win ? (payout - betAmount) : betAmount, // for notifications
-      balance: user.balance,
+      balance: updatedBalance,
       // verify data (ẩn trên UI)
       seedHash, serverSeed, clientSeed, nonce,
     });

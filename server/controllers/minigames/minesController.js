@@ -1,4 +1,5 @@
 // server/controllers/minigames/minesController.js
+const mongoose              = require('mongoose');
 const User                  = require('../../models/User');
 const { randomInt }         = require('../../utils/random');
 const { recordGameHistory } = require('../../utils/history');
@@ -77,14 +78,23 @@ exports.pickMines = async (req, res) => {
   state.picks.add(index);
   const user = await User.findById(userId);
 
-  // Hit a mine -> kết thúc (thua)
+  // Hit a mine -> kết thúc (thua) - no balance change needed (already deducted at start)
   if (state.mines.has(index)) {
     games.delete(userId);
     const payout = 0;
-    // Record history
-    await recordGameHistory({
-      userId, game: 'mines', betAmount: state.betAmount, outcome: 'lose', payout
-    });
+
+    // ✅ Use transaction for history recording
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await recordGameHistory({
+          userId, game: 'mines', betAmount: state.betAmount, outcome: 'lose', payout
+        }, session);
+      });
+    } finally {
+      await session.endSession();
+    }
+
     return res.json({
       message: `Boom! You hit a mine on pick #${state.picks.size}.`,
       mined: true,
@@ -101,13 +111,37 @@ exports.pickMines = async (req, res) => {
   if (pickCount >= MAX_PICKS) {
     const multiplier = MULTIPLIERS[pickCount] || 0;
     const payout     = state.betAmount * multiplier;
-    user.balance    += payout;
-    await user.save();
+
+    // ✅ Use MongoDB transaction for atomic balance update + history
+    const session = await mongoose.startSession();
+    let updatedBalance;
+    
+    try {
+      await session.withTransaction(async () => {
+        // Atomic balance update (add winnings back)
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: { balance: payout } },
+          { new: true, session }
+        ).select('balance');
+
+        if (!updatedUser) {
+          throw new Error('User not found during transaction');
+        }
+
+        updatedBalance = updatedUser.balance;
+
+        // Record history within transaction
+        await recordGameHistory({
+          userId, game: 'mines', betAmount: state.betAmount, outcome: 'win', payout
+        }, session);
+      });
+    } finally {
+      await session.endSession();
+    }
+
     games.delete(userId);
-    // Record history
-    await recordGameHistory({
-      userId, game: 'mines', betAmount: state.betAmount, outcome: 'win', payout
-    });
+
     return res.json({
       message: `You cleared all ${MAX_PICKS} picks!`,
       mined: false,
@@ -116,7 +150,7 @@ exports.pickMines = async (req, res) => {
       payout,
       win: true,          // ← thêm cho notification wrapper
       amount: payout,     // ← số tiền thắng
-      balance: user.balance
+      balance: updatedBalance
     });
   }
 

@@ -1,10 +1,20 @@
 // server/server.js
+require('dotenv').config(); // ✅ Load .env first
+
+// ✅ Validate environment variables before anything else
+const validateEnv = require('./utils/validateEnv');
+try {
+  validateEnv(); // Fail fast if config is invalid
+} catch (error) {
+  console.error('❌ Server startup failed due to invalid configuration');
+  process.exit(1);
+}
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const mongoSanitizeCustom = require('./middleware/mongoSanitize');
-require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');

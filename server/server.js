@@ -32,6 +32,7 @@ const { schedulePvpCleanup, stopPvpCleanup } = require('./cron/cleanupRooms');
 const logRequest = require('./middleware/logRequest');
 const requestId = require('./middleware/requestId');
 const errorHandler = require('./middleware/errorHandler');
+const socketAuthMiddleware = require('./middleware/socketAuth');
 
 const PvpRoom = require('./models/PvpRoom');
 
@@ -57,18 +58,36 @@ const io = new Server(http, {
   },
 });
 
+// 🔐 Apply Socket.IO authentication middleware
+io.use(socketAuthMiddleware);
+
 const onlineUsers = {};
 
 io.on('connection', (socket) => {
+  // ✅ User is already authenticated via middleware
+  // socket.userId and socket.user are available
+  
   socket.on('register', (userId) => {
+    // 🔐 Verify the userId matches authenticated user
+    if (socket.userId !== userId) {
+      console.warn(`User ${socket.userId} attempted to register as ${userId}`);
+      socket.emit('error', { message: 'Unauthorized: User ID mismatch' });
+      return;
+    }
+    
     onlineUsers[userId] ||= [];
     onlineUsers[userId].push(socket.id);
+    console.log(`✅ User ${userId} registered (socket: ${socket.id})`);
   });
 
   socket.on('disconnect', () => {
+    // Clean up user from onlineUsers
     for (const [uid, sockets] of Object.entries(onlineUsers)) {
       onlineUsers[uid] = sockets.filter((id) => id !== socket.id);
-      if (onlineUsers[uid].length === 0) delete onlineUsers[uid];
+      if (onlineUsers[uid].length === 0) {
+        delete onlineUsers[uid];
+        console.log(`👋 User ${uid} disconnected`);
+      }
     }
   });
 });

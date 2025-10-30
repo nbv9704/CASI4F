@@ -1,4 +1,5 @@
 // server/controllers/rewardController.js
+const mongoose = require('mongoose');
 const User = require('../models/User');
 
 const REWARD_AMOUNTS = {
@@ -29,25 +30,63 @@ exports.getRewardsStatus = async (req, res) => {
 };
 
 // POST /api/rewards/:type
+// 🔒 Uses MongoDB transaction to prevent double-claiming via race condition
 exports.collectReward = async (req, res) => {
   try {
     const { type } = req.params; // 'hourly', 'daily', 'weekly'
     if (!['hourly', 'daily', 'weekly'].includes(type)) {
       return res.status(400).json({ error: 'Invalid reward type' });
     }
-    const user = await User.findById(req.user.id);
-    const last = user[`${type}CollectedAt`];
-    const now  = Date.now();
-    if (last && now - last.getTime() < COOLDOWNS_MS[type]) {
-      const next = new Date(last.getTime() + COOLDOWNS_MS[type]);
-      return res.status(400).json({ error: 'Cooldown active', nextAvailable: next });
+
+    const session = await mongoose.startSession();
+    let balance;
+
+    try {
+      await session.startTransaction();
+
+      // Lock user document in transaction to prevent race condition
+      const user = await User.findById(req.user.id).session(session);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      const last = user[`${type}CollectedAt`];
+      const now  = Date.now();
+      
+      // Check cooldown
+      if (last && now - last.getTime() < COOLDOWNS_MS[type]) {
+        const next = new Date(last.getTime() + COOLDOWNS_MS[type]);
+        throw { status: 400, error: 'Cooldown active', nextAvailable: next };
+      }
+
+      // Grant reward atomically
+      const amount = REWARD_AMOUNTS[type];
+      user.balance += amount;
+      user[`${type}CollectedAt`] = new Date();
+      await user.save({ session });
+
+      await session.commitTransaction();
+      balance = user.balance;
+
+      res.json({ 
+        message: `Collected ${type} reward`, 
+        amount, 
+        balance 
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      
+      // Re-throw validation errors
+      if (error.status === 400) {
+        return res.status(400).json({ 
+          error: error.error, 
+          nextAvailable: error.nextAvailable 
+        });
+      }
+      throw error;
+    } finally {
+      session.endSession();
     }
-    // Grant reward
-    const amount = REWARD_AMOUNTS[type];
-    user.balance += amount;
-    user[`${type}CollectedAt`] = new Date();
-    await user.save();
-    res.json({ message: `Collected ${type} reward`, amount, balance: user.balance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

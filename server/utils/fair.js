@@ -1,27 +1,14 @@
 // server/utils/fair.js
 const crypto = require('crypto');
 
-/**
- * In-memory active server seed for commit–reveal.
- * Bạn có thể lưu/rotate seed này ở DB/redis theo chu kỳ nếu muốn.
- */
-let ACTIVE_SERVER_SEED = null;
-
 /** Tạo serverSeed ngẫu nhiên (64 hex) */
 function makeServerSeed() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-/** Đặt/rotate serverSeed đang hoạt động (trả lại seed mới) */
-function setActiveServerSeed(seed) {
-  ACTIVE_SERVER_SEED = seed || makeServerSeed();
-  return ACTIVE_SERVER_SEED;
-}
-
-/** Lấy serverSeed đang hoạt động (tự tạo nếu chưa có) */
-function getActiveServerSeed() {
-  if (!ACTIVE_SERVER_SEED) setActiveServerSeed();
-  return ACTIVE_SERVER_SEED;
+/** Tạo clientSeed mặc định từ userId */
+function makeClientSeed(userId) {
+  return String(userId);
 }
 
 /** SHA-256 tiện dụng (dùng làm commit hash) */
@@ -29,14 +16,90 @@ function sha256(input) {
   return crypto.createHash('sha256').update(String(input)).digest('hex');
 }
 
-/** Commit: hash của serverSeed hiện tại */
-function getSeedHash() {
-  return sha256(getActiveServerSeed());
+/**
+ * Initialize or rotate seeds for a user
+ * @param {Object} user - Mongoose User document
+ * @returns {Object} { serverSeed, serverSeedHash, clientSeed, nonce }
+ */
+async function initializeUserSeeds(user) {
+  const serverSeed = makeServerSeed();
+  const serverSeedHash = sha256(serverSeed);
+  const clientSeed = user.clientSeed || makeClientSeed(user._id);
+  
+  user.serverSeed = serverSeed;
+  user.serverSeedHash = serverSeedHash;
+  user.clientSeed = clientSeed;
+  user.nonce = 0;
+  
+  await user.save();
+  
+  return { serverSeed, serverSeedHash, clientSeed, nonce: 0 };
+}
+
+/**
+ * Get user's current seeds, initialize if needed
+ * @param {Object} user - Mongoose User document
+ * @returns {Promise<Object>} { serverSeed, serverSeedHash, clientSeed, nonce }
+ */
+async function getUserSeeds(user) {
+  if (!user.serverSeed || !user.serverSeedHash) {
+    return await initializeUserSeeds(user);
+  }
+  
+  return {
+    serverSeed: user.serverSeed,
+    serverSeedHash: user.serverSeedHash,
+    clientSeed: user.clientSeed,
+    nonce: user.nonce
+  };
+}
+
+/**
+ * Increment user's nonce (call after each game)
+ * @param {Object} user - Mongoose User document
+ * @returns {Promise<number>} new nonce value
+ */
+async function incrementNonce(user) {
+  user.nonce += 1;
+  await user.save();
+  return user.nonce;
+}
+
+/**
+ * Rotate user's server seed (for seed change feature)
+ * @param {Object} user - Mongoose User document
+ * @returns {Promise<Object>} { oldServerSeed, newServerSeed, newServerSeedHash }
+ */
+async function rotateServerSeed(user) {
+  const oldServerSeed = user.serverSeed;
+  const newServerSeed = makeServerSeed();
+  const newServerSeedHash = sha256(newServerSeed);
+  
+  user.serverSeed = newServerSeed;
+  user.serverSeedHash = newServerSeedHash;
+  user.nonce = 0; // Reset nonce on seed rotation
+  
+  await user.save();
+  
+  return { oldServerSeed, newServerSeed, newServerSeedHash };
+}
+
+/**
+ * Update user's client seed (allow user customization)
+ * @param {Object} user - Mongoose User document
+ * @param {string} newClientSeed - New client seed
+ * @returns {Promise<string>} new client seed
+ */
+async function updateClientSeed(user, newClientSeed) {
+  user.clientSeed = String(newClientSeed);
+  user.nonce = 0; // Reset nonce on client seed change
+  await user.save();
+  return user.clientSeed;
 }
 
 /**
  * HMAC hex = HMAC_SHA256(serverSeed, `${clientSeed}:${nonce}`)
- * Đây là lõi “provably fair”: clientSeed + nonce khiến server không thể đơn phương điều khiển kết quả.
+ * Đây là lõi "provably fair": clientSeed + nonce khiến server không thể đơn phương điều khiển kết quả.
  */
 function hmacHex({ serverSeed, clientSeed, nonce }) {
   const key = String(serverSeed);
@@ -62,12 +125,16 @@ function verify({ serverSeed, clientSeed, nonce, result }) {
 }
 
 module.exports = {
-  // seed lifecycle
+  // seed generation
   makeServerSeed,
-  setActiveServerSeed,
-  getActiveServerSeed,
-  getSeedHash,
+  makeClientSeed,
   sha256,
+  // user seed management (DB-based)
+  initializeUserSeeds,
+  getUserSeeds,
+  incrementNonce,
+  rotateServerSeed,
+  updateClientSeed,
   // rng
   hmacHex,
   hmacFloat,

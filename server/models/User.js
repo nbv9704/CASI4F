@@ -12,6 +12,11 @@ const userSchema = new mongoose.Schema({
   bank:                  { type: Number, default: 0 },
   avatar:                { type: String, default: '' }, // URL ảnh profile
   dateOfBirth:           { type: Date, default: null }, // Ngày sinh
+  // Provably Fair seeds (per-user)
+  serverSeed:            { type: String, default: null }, // Current active server seed
+  serverSeedHash:        { type: String, default: null }, // SHA-256 of serverSeed (committed to user)
+  clientSeed:            { type: String, default: null }, // User's client seed (can be customized)
+  nonce:                 { type: Number, default: 0 },    // Incremented per game
   // Reward cooldowns
   hourlyCollectedAt:     { type: Date, default: null },
   dailyCollectedAt:      { type: Date, default: null },

@@ -40,14 +40,15 @@ exports.dice = async (req, res) => {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    // === Provably Fair commit–reveal ===
-    const serverSeed = fair.getActiveServerSeed(); // commit seed hiện hành
-    const seedHash   = fair.getSeedHash();         // sha256(serverSeed) để verify
-    const nonce      = Date.now().toString();      // mỗi ván 1 nonce
-    const clientSeed = String(rawClientSeed || userId);
+    // ✅ Get or initialize user's provably fair seeds from DB
+    const seeds = await fair.getUserSeeds(user);
+    const { serverSeed, serverSeedHash, clientSeed, nonce } = seeds;
 
-    // PF roll: 1..sides
-    const rollFloat = fair.hmacFloat({ serverSeed, clientSeed, nonce });
+    // Allow user to override clientSeed for this game (if provided)
+    const effectiveClientSeed = rawClientSeed || clientSeed;
+
+    // Provably fair roll: 1..sides
+    const rollFloat = fair.hmacFloat({ serverSeed, clientSeed: effectiveClientSeed, nonce });
     const result    = Math.floor(rollFloat * sides) + 1;
 
     const win        = result === guess;
@@ -57,18 +58,23 @@ exports.dice = async (req, res) => {
     // Calculate balance change
     const delta = win ? (payout - betAmount) : -betAmount;
 
-    // ✅ Use MongoDB transaction for atomic balance update + history
+    // ✅ Use MongoDB transaction for atomic balance update + nonce increment + history
     const session = await mongoose.startSession();
     let updatedBalance;
     
     try {
       await session.withTransaction(async () => {
-        // Atomic balance update
+        // Atomic balance update + nonce increment
         const updatedUser = await User.findByIdAndUpdate(
           userId,
-          { $inc: { balance: delta } },
+          { 
+            $inc: { 
+              balance: delta,
+              nonce: 1  // ✅ Increment nonce for next game
+            } 
+          },
           { new: true, session }
-        ).select('balance');
+        ).select('balance nonce');
 
         if (!updatedUser) {
           throw new Error('User not found during transaction');
@@ -94,8 +100,14 @@ exports.dice = async (req, res) => {
       result, sides, win, multiplier, payout,
       amount: win ? (payout - betAmount) : betAmount, // for notifications
       balance: updatedBalance,
-      // verify data (ẩn trên UI)
-      seedHash, serverSeed, clientSeed, nonce,
+      // ✅ Provably fair verification data
+      fair: {
+        serverSeedHash,           // Committed hash
+        serverSeed,               // Revealed seed
+        clientSeed: effectiveClientSeed,
+        nonce,                    // Nonce used
+        result                    // Can verify: hmacFloat({serverSeed, clientSeed, nonce}) * sides + 1 === result
+      }
     });
   } catch (err) {
     console.error(err);

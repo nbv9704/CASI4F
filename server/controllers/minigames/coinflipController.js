@@ -32,32 +32,38 @@ exports.coinflip = async (req, res) => {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    // === Provably Fair commit–reveal (solo) ===
-    const serverSeed = fair.getActiveServerSeed(); // commit seed (đang dùng)
-    const seedHash   = fair.getSeedHash();         // sha256(serverSeed), show cho user
-    const nonce      = Date.now().toString();      // mỗi ván 1 nonce (bạn có thể dùng counter, UUID,...)
-    const clientSeed = String(rawClientSeed || userId);
+    // ✅ Get or initialize user's provably fair seeds from DB
+    const seeds = await fair.getUserSeeds(user);
+    const { serverSeed, serverSeedHash, clientSeed, nonce } = seeds;
 
-    // RNG
-    const flip = fair.coinflip({ serverSeed, clientSeed, nonce });
+    // Allow user to override clientSeed for this game (if provided)
+    const effectiveClientSeed = rawClientSeed || clientSeed;
+
+    // RNG using provably fair
+    const flip = fair.coinflip({ serverSeed, clientSeed: effectiveClientSeed, nonce });
     const win  = flip === side;
 
     // Calculate payout
     const payout = win ? betAmount : 0;
     const delta  = win ? betAmount : -betAmount;
 
-    // ✅ Use MongoDB transaction for atomic balance update + history
+    // ✅ Use MongoDB transaction for atomic balance update + nonce increment + history
     const session = await mongoose.startSession();
     let updatedBalance;
     
     try {
       await session.withTransaction(async () => {
-        // Atomic balance update
+        // Atomic balance update + nonce increment
         const updatedUser = await User.findByIdAndUpdate(
           userId,
-          { $inc: { balance: delta } },
+          { 
+            $inc: { 
+              balance: delta,
+              nonce: 1  // ✅ Increment nonce for next game
+            } 
+          },
           { new: true, session }
-        ).select('balance');
+        ).select('balance nonce');
 
         if (!updatedUser) {
           throw new Error('User not found during transaction');
@@ -88,11 +94,14 @@ exports.coinflip = async (req, res) => {
       payout,
       amount: Math.abs(delta),
       balance: updatedBalance,
-      // verify data
-      seedHash,    // commit
-      serverSeed,  // reveal (solo trả luôn)
-      clientSeed,
-      nonce,
+      // ✅ Provably fair verification data
+      fair: {
+        serverSeedHash,           // Committed hash (proves server didn't change seed)
+        serverSeed,               // Revealed seed (for verification)
+        clientSeed: effectiveClientSeed,
+        nonce,                    // Nonce used for this game
+        result: flip              // Can verify: coinflip({serverSeed, clientSeed, nonce}) === flip
+      }
     });
   } catch (err) {
     console.error(err);

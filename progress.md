@@ -78,3 +78,9 @@
 - [ ] Tối ưu UI (loading state, error handling).
 - [ ] Bảo mật: thêm JWT refresh + rate limit trước khi mở public.
 - [ ] Dọn code, log, cấu hình env.
+
+### 7. Security & Reliability Improvements ✅
+- [x] **MongoDB Transaction Safety**: Thêm transactions cho tất cả solo game controllers (atomicity cho balance + history + logs).
+- [x] **Provably Fair Seeds Migration**: Di chuyển seeds từ memory sang MongoDB với TTL index (persist qua server restarts).
+- [x] **Environment Config Validation**: Validate MONGO_URI, JWT_SECRET, PORT, etc. khi server khởi động (fail-fast).
+- [x] **Socket.IO Authentication**: JWT auth cho tất cả socket connections, secure PvP games (prevent spoofing).

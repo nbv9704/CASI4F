@@ -390,9 +390,14 @@ function SettingsPage() {
                   <ImageIcon className="h-4 w-4" />
                   <span className="whitespace-nowrap">{avatarButtonLabel}</span>
                 </button>
-                <span className="hidden whitespace-nowrap text-xs text-white/50 sm:block">
-                  {avatarHint}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <span
+                    className="block truncate text-xs text-white/50"
+                    title={avatarHint}
+                  >
+                    {avatarHint}
+                  </span>
+                </div>
               </div>
               <input
                 ref={fileInputRef}

@@ -60,6 +60,17 @@ function SettingsPage() {
     [t],
   );
 
+  const rawAvatarLabel = translate("settings.profileCard.avatar", "Avatar");
+  const avatarLabel =
+    typeof rawAvatarLabel === "string" && rawAvatarLabel.toLowerCase().includes("url")
+      ? "Avatar"
+      : rawAvatarLabel;
+  const avatarButtonLabel = translate("settings.profileCard.avatarUpload", "Add image");
+  const avatarHint = translate(
+    "settings.profileCard.avatarHint",
+    "PNG, JPG or WEBP recommended. We crop to a square and optimise up to 512KB.",
+  );
+
   const triggerAvatarPicker = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -366,27 +377,18 @@ function SettingsPage() {
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-white/60">
                 <ImageIcon className="h-4 w-4 text-blue-300" />
-                {(() => {
-                  const label = translate("settings.profileCard.avatar", "Avatar");
-                  return label?.toLowerCase().includes("url") ? "Avatar" : label;
-                })()}
+                {avatarLabel}
               </label>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  onClick={triggerAvatarPicker}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/60 hover:bg-white/20"
-                >
-                  <ImageIcon className="h-4 w-4" />
-                  <span>{translate("settings.profileCard.avatarUpload", "Add image")}</span>
-                </button>
-                <p className="text-xs text-white/50">
-                  {translate(
-                    "settings.profileCard.avatarHint",
-                    "PNG, JPG or WEBP recommended. We crop to a square and optimise up to 512KB.",
-                  )}
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={triggerAvatarPicker}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/60 hover:bg-white/20 whitespace-nowrap"
+                title={avatarHint}
+                aria-label={avatarButtonLabel}
+              >
+                <ImageIcon className="h-4 w-4" />
+                <span>{avatarButtonLabel}</span>
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"

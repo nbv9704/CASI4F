@@ -278,6 +278,10 @@ const translations = {
         profileUpdated: "Profile updated successfully!",
         passwordMismatch: "New passwords do not match.",
         passwordUpdated: "Password changed successfully!",
+        avatarInvalidType: "Please upload a supported image file.",
+        avatarProcessed: "Avatar ready! Preview updated.",
+        avatarProcessFailed:
+          "We couldn't process that image. Try another file.",
       },
       header: {
         accent: "Account overview",
@@ -295,7 +299,10 @@ const translations = {
         title: "Profile details",
         username: "Username",
         email: "Email",
-        avatar: "Avatar URL",
+        avatar: "Avatar",
+        avatarUpload: "Add image",
+        avatarHint:
+          "PNG, JPG or WEBP recommended. We crop to a square and optimise up to 512KB.",
         dateOfBirth: "Date of birth",
         currentPassword: "Current password",
         currentPasswordPlaceholder: "Enter your password to confirm",
@@ -955,6 +962,9 @@ const translations = {
         profileUpdated: "Cập nhật thông tin cá nhân thành công!",
         passwordMismatch: "Mật khẩu mới không khớp.",
         passwordUpdated: "Đổi mật khẩu thành công!",
+        avatarInvalidType: "Vui lòng chọn đúng định dạng hình ảnh.",
+        avatarProcessed: "Ảnh đại diện đã sẵn sàng!",
+        avatarProcessFailed: "Không thể xử lý ảnh này. Hãy thử ảnh khác.",
       },
       header: {
         accent: "Tổng quan tài khoản",
@@ -972,7 +982,10 @@ const translations = {
         title: "Thông tin cá nhân",
         username: "Tên người dùng",
         email: "Email",
-        avatar: "Avatar URL",
+        avatar: "Ảnh đại diện",
+        avatarUpload: "Thêm ảnh",
+        avatarHint:
+          "Nên dùng PNG, JPG hoặc WEBP. Hệ thống sẽ cắt vuông và tối ưu dưới 512KB.",
         dateOfBirth: "Ngày sinh",
         currentPassword: "Mật khẩu hiện tại",
         currentPasswordPlaceholder: "Nhập mật khẩu để xác nhận",

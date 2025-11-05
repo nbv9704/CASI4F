@@ -379,16 +379,21 @@ function SettingsPage() {
                 <ImageIcon className="h-4 w-4 text-blue-300" />
                 {avatarLabel}
               </label>
-              <button
-                type="button"
-                onClick={triggerAvatarPicker}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/60 hover:bg-white/20 whitespace-nowrap"
-                title={avatarHint}
-                aria-label={avatarButtonLabel}
-              >
-                <ImageIcon className="h-4 w-4" />
-                <span>{avatarButtonLabel}</span>
-              </button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <button
+                  type="button"
+                  onClick={triggerAvatarPicker}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/60 hover:bg-white/20 whitespace-nowrap"
+                  title={avatarHint}
+                  aria-label={avatarButtonLabel}
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  <span className="whitespace-nowrap">{avatarButtonLabel}</span>
+                </button>
+                <span className="hidden whitespace-nowrap text-xs text-white/50 sm:block">
+                  {avatarHint}
+                </span>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"

@@ -1,7 +1,7 @@
 // client/src/app/login/page.js
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import useApi from '../../hooks/useApi'
@@ -20,7 +20,7 @@ import {
 
 const REDIRECT_FLAG = 'auth:redirected'
 
-export default function LoginPage() {
+function LoginView() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const nextPath = searchParams?.get('next') || '/'
@@ -258,5 +258,21 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+function LoginFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+      <span className="text-sm text-white/70">Loading login…</span>
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginView />
+    </Suspense>
   )
 }

@@ -41,14 +41,31 @@ const app = express();
 const http = require('http').createServer(app);
 const { Server } = require('socket.io');
 
-// CORS whitelist
-const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001', process.env.CLIENT_URL, process.env.FRONTEND_URL].filter(Boolean);
+// CORS whitelist helper – accept comma-separated values and trim trailing slashes
+function parseOrigins(value) {
+  if (!value) return []
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((origin) => origin.replace(/\/$/, ''))
+}
+
+const defaultOrigins = ['http://localhost:3000', 'http://localhost:3001']
+const envOrigins = [
+  ...parseOrigins(process.env.CLIENT_URL),
+  ...parseOrigins(process.env.FRONTEND_URL),
+  ...parseOrigins(process.env.ALLOWED_ORIGINS),
+]
+
+const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])]
 
 const io = new Server(http, {
   cors: {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
+      const sanitizedOrigin = origin.replace(/\/$/, '');
+      if (allowedOrigins.includes(sanitizedOrigin)) {
         callback(null, true);
       } else {
         callback(new Error('CORS not allowed'));
@@ -94,7 +111,7 @@ app.use(
         styleSrc: ["'self'", "'unsafe-inline'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'", 'http://localhost:3000', 'http://localhost:3001'],
+        connectSrc: ["'self'", ...allowedOrigins],
       },
     },
     crossOriginEmbedderPolicy: false,
@@ -106,7 +123,8 @@ app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
+      const sanitizedOrigin = origin.replace(/\/$/, '')
+      if (allowedOrigins.includes(sanitizedOrigin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));

@@ -81,6 +81,7 @@ exports.dicePoker = async (req, res) => {
     // ✅ Use MongoDB transaction for atomic balance update + history
     const session = await mongoose.startSession()
     let updatedBalance
+    let experienceMeta = null
     
     try {
       await session.withTransaction(async () => {
@@ -101,9 +102,13 @@ exports.dicePoker = async (req, res) => {
         const outcome = multiplier > 0 ? 'win' : 'lose'
 
         // Record history within transaction
-        await recordGameHistory({ 
+        const historyResult = await recordGameHistory({ 
           userId, game: 'dicepoker', betAmount, outcome, payout 
         }, session)
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience
+        }
       })
     } finally {
       await session.endSession()
@@ -119,7 +124,8 @@ exports.dicePoker = async (req, res) => {
       payout,
       win,
       amount: win ? payout : betAmount,
-      balance: updatedBalance
+      balance: updatedBalance,
+      experience: experienceMeta
     })
   } catch (err) {
     console.error(err)

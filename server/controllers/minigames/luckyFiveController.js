@@ -4,8 +4,8 @@ const User                  = require('../../models/User');
 const { randomInt }         = require('../../utils/random');
 const { recordGameHistory } = require('../../utils/history');
 
-const NUMBER_MIN     = 1;
-const NUMBER_MAX     = 100;
+const NUMBER_MIN     = 0;
+const NUMBER_MAX     = 30;
 const DRAW_COUNT     = 5;
 const ALLOWED_COLORS = ['red','orange','yellow','green','blue'];
 
@@ -74,8 +74,9 @@ exports.luckyFive = async (req, res) => {
     const delta = totalPayout - betAmount;
 
     // ✅ Use MongoDB transaction for atomic balance update + history
-    const session = await mongoose.startSession();
-    let updatedBalance;
+  const session = await mongoose.startSession();
+  let updatedBalance;
+  let experienceMeta = null;
     
     try {
       await session.withTransaction(async () => {
@@ -97,13 +98,17 @@ exports.luckyFive = async (req, res) => {
         const outcome = win ? 'win' : 'lose';
 
         // Record history within transaction
-        await recordGameHistory({
+        const historyResult = await recordGameHistory({
           userId,
           game: 'luckyfive',
           betAmount,
           outcome,
           payout: totalPayout
         }, session);
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience;
+        }
       });
     } finally {
       await session.endSession();
@@ -121,7 +126,8 @@ exports.luckyFive = async (req, res) => {
       payouts: { payoutNumber, payoutColor, totalPayout },
       win,                                   // ← thêm
       amount: win ? totalPayout : betAmount, // ← thêm
-      balance: updatedBalance
+      balance: updatedBalance,
+      experience: experienceMeta
     });
   } catch (err) {
     console.error(err);

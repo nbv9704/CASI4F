@@ -84,12 +84,17 @@ exports.pickMines = async (req, res) => {
     const payout = 0;
 
     // ✅ Use transaction for history recording
+    let experienceMeta = null;
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
-        await recordGameHistory({
-          userId, game: 'mines', betAmount: state.betAmount, outcome: 'lose', payout
+        const historyResult = await recordGameHistory({
+          userId, game: 'mines', betAmount: state.betAmount, outcome: 'lose', payout: 0
         }, session);
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience;
+        }
       });
     } finally {
       await session.endSession();
@@ -102,7 +107,8 @@ exports.pickMines = async (req, res) => {
       payout,
       win: false,                 // ← thêm cho notification wrapper
       amount: state.betAmount,    // ← số tiền bị mất
-      balance: user.balance
+      balance: user.balance,
+      experience: experienceMeta
     });
   }
 
@@ -115,6 +121,7 @@ exports.pickMines = async (req, res) => {
     // ✅ Use MongoDB transaction for atomic balance update + history
     const session = await mongoose.startSession();
     let updatedBalance;
+    let experienceMeta = null;
     
     try {
       await session.withTransaction(async () => {
@@ -132,9 +139,13 @@ exports.pickMines = async (req, res) => {
         updatedBalance = updatedUser.balance;
 
         // Record history within transaction
-        await recordGameHistory({
+        const historyResult = await recordGameHistory({
           userId, game: 'mines', betAmount: state.betAmount, outcome: 'win', payout
         }, session);
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience;
+        }
       });
     } finally {
       await session.endSession();
@@ -150,15 +161,89 @@ exports.pickMines = async (req, res) => {
       payout,
       win: true,          // ← thêm cho notification wrapper
       amount: payout,     // ← số tiền thắng
-      balance: updatedBalance
+      balance: updatedBalance,
+      experience: experienceMeta
     });
   }
 
   // Continue game (đừng thêm win/amount để tránh bắn notify)
+  const multiplier = MULTIPLIERS[pickCount] || 0;
   return res.json({
     message: `Safe! You have picked ${pickCount}/${MAX_PICKS}.`,
+    safe: true,  // ← frontend expect this
     mined: false,
     pickCount,
+    multiplier,
     balance: user.balance
+  });
+};
+
+/**
+ * POST /api/game/mines/cashout
+ * Body: {}
+ */
+exports.cashoutMines = async (req, res) => {
+  const userId = req.user.id;
+  const state  = games.get(userId);
+  
+  if (!state) {
+    return res.status(400).json({ error: 'No active game. Call /mines/start first.' });
+  }
+
+  const user = await User.findById(userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const pickCount  = state.picks.size;
+  const multiplier = MULTIPLIERS[pickCount] || 0;
+  const payout     = state.betAmount * multiplier;
+
+  // ✅ Use MongoDB transaction for atomic balance update + history
+  const session = await mongoose.startSession();
+  let updatedBalance;
+  let experienceMeta = null;
+  
+  try {
+    await session.withTransaction(async () => {
+      // Atomic balance update (add winnings back)
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { $inc: { balance: payout } },
+        { new: true, session }
+      ).select('balance');
+
+      if (!updatedUser) {
+        throw new Error('User not found during transaction');
+      }
+
+      updatedBalance = updatedUser.balance;
+
+      // Record history within transaction
+      const historyResult = await recordGameHistory({
+        userId,
+        game: 'mines',
+        betAmount: state.betAmount,
+        outcome: payout > state.betAmount ? 'win' : 'lose',
+        payout
+      }, session);
+
+      if (historyResult?.experience) {
+        experienceMeta = historyResult.experience;
+      }
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  games.delete(userId);
+
+  return res.json({
+    message: `Cashed out with ${pickCount} safe picks!`,
+    pickCount,
+    multiplier,
+    payout,
+    win: payout > state.betAmount,  // win if payout > bet
+    amount: payout,
+    balance: updatedBalance,
+    experience: experienceMeta
   });
 };

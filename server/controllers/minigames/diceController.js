@@ -59,8 +59,9 @@ exports.dice = async (req, res) => {
     const delta = win ? (payout - betAmount) : -betAmount;
 
     // ✅ Use MongoDB transaction for atomic balance update + nonce increment + history
-    const session = await mongoose.startSession();
-    let updatedBalance;
+  const session = await mongoose.startSession();
+  let updatedBalance;
+  let experienceMeta = null;
     
     try {
       await session.withTransaction(async () => {
@@ -83,10 +84,14 @@ exports.dice = async (req, res) => {
         updatedBalance = updatedUser.balance;
 
         // Record history within transaction
-        await recordGameHistory({
+        const historyResult = await recordGameHistory({
           userId, game: 'dice', betAmount,
           outcome: win ? 'win' : 'lose', payout
         }, session);
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience;
+        }
       });
     } finally {
       await session.endSession();
@@ -100,6 +105,7 @@ exports.dice = async (req, res) => {
       result, sides, win, multiplier, payout,
       amount: win ? (payout - betAmount) : betAmount, // for notifications
       balance: updatedBalance,
+  experience: experienceMeta,
       // ✅ Provably fair verification data
       fair: {
         serverSeedHash,           // Committed hash

@@ -48,8 +48,9 @@ exports.coinflip = async (req, res) => {
     const delta  = win ? betAmount : -betAmount;
 
     // ✅ Use MongoDB transaction for atomic balance update + nonce increment + history
-    const session = await mongoose.startSession();
-    let updatedBalance;
+  const session = await mongoose.startSession();
+  let updatedBalance;
+  let experienceMeta = null;
     
     try {
       await session.withTransaction(async () => {
@@ -72,13 +73,17 @@ exports.coinflip = async (req, res) => {
         updatedBalance = updatedUser.balance;
 
         // Record history within transaction
-        await recordGameHistory({
+        const historyResult = await recordGameHistory({
           userId,
           game: 'coinflip',
           betAmount,
           outcome: win ? 'win' : 'lose',
           payout,
         }, session);
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience;
+        }
       });
     } finally {
       await session.endSession();
@@ -94,6 +99,7 @@ exports.coinflip = async (req, res) => {
       payout,
       amount: Math.abs(delta),
       balance: updatedBalance,
+  experience: experienceMeta,
       // ✅ Provably fair verification data
       fair: {
         serverSeedHash,           // Committed hash (proves server didn't change seed)

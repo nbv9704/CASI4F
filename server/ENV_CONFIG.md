@@ -1,6 +1,6 @@
 # Environment Configuration Guide
 
-This document explains how to configure environment variables for the 4FUNBET server.
+This document explains how to configure environment variables for the CASI4F server.
 
 ## Quick Start
 

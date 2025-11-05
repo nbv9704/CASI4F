@@ -24,15 +24,16 @@ const gameRoutes = require('./routes/gameRoutes');
 const rewardRoutes = require('./routes/rewardRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const pvpRoutes = require('./routes/pvpRoutes');
+const fairRoutes = require('./routes/fairRoutes');
 const registerPvpSocket = require('./socket/pvp');
 const { router: adminPvpRouter } = require('./routes/adminPvpRoutes');
+const rankingRoutes = require('./routes/rankingRoutes');
 const { schedulePvpCleanup, stopPvpCleanup } = require('./cron/cleanupRooms');
 
 // ✅ Import middleware
 const logRequest = require('./middleware/logRequest');
 const requestId = require('./middleware/requestId');
 const errorHandler = require('./middleware/errorHandler');
-const socketAuthMiddleware = require('./middleware/socketAuth');
 
 const PvpRoom = require('./models/PvpRoom');
 
@@ -58,23 +59,10 @@ const io = new Server(http, {
   },
 });
 
-// 🔐 Apply Socket.IO authentication middleware
-io.use(socketAuthMiddleware);
-
 const onlineUsers = {};
 
 io.on('connection', (socket) => {
-  // ✅ User is already authenticated via middleware
-  // socket.userId and socket.user are available
-  
   socket.on('register', (userId) => {
-    // 🔐 Verify the userId matches authenticated user
-    if (socket.userId !== userId) {
-      console.warn(`User ${socket.userId} attempted to register as ${userId}`);
-      socket.emit('error', { message: 'Unauthorized: User ID mismatch' });
-      return;
-    }
-    
     onlineUsers[userId] ||= [];
     onlineUsers[userId].push(socket.id);
     console.log(`✅ User ${userId} registered (socket: ${socket.id})`);
@@ -151,7 +139,9 @@ app.use('/api/game', gameRoutes);
 app.use('/api/rewards', rewardRoutes);
 app.use('/api/notification', notificationRoutes);
 app.use('/api/pvp', pvpRoutes);
+app.use('/api/fair', fairRoutes);
 app.use('/api/admin/pvp', adminPvpRouter);
+app.use('/api/rankings', rankingRoutes);
 
 app.get('/', (req, res) => {
   res.send('Cado4fun backend running!');

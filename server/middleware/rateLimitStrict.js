@@ -17,12 +17,7 @@ const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Skip successful requests from counting
-  skipSuccessfulRequests: true,
-  // Custom key generator (IP + endpoint)
-  keyGenerator: (req) => {
-    return `${req.ip}:${req.path}`;
-  }
+  skipSuccessfulRequests: true
 });
 
 // Wallet transfer endpoint
@@ -36,28 +31,21 @@ const transferLimiter = rateLimit({
     retryAfter: '5 minutes'
   },
   standardHeaders: true,
-  legacyHeaders: false,
-  // Key by user ID if authenticated
-  keyGenerator: (req) => {
-    return req.user?.id ? String(req.user.id) : req.ip;
-  }
+  legacyHeaders: false
 });
 
-// PvP action endpoints (start/roll/finish)
-// 20 actions per 1 minute per user
+// Game action endpoints (all solo games + PvP)
+// 60 actions per 1 minute per user (allows for fast gameplay like Tower with 15+ ascends)
 const pvpActionLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 20,
+  max: 60,
   message: {
-    error: 'Too many PvP actions, please slow down',
-    code: 'RATE_LIMIT_PVP',
+    error: 'Too many game actions, please slow down',
+    code: 'RATE_LIMIT_GAME',
     retryAfter: '1 minute'
   },
   standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.user?.id ? String(req.user.id) : req.ip;
-  }
+  legacyHeaders: false
 });
 
 // Room creation: 5 rooms per 10 minutes per user
@@ -70,10 +58,7 @@ const createRoomLimiter = rateLimit({
     retryAfter: '10 minutes'
   },
   standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.user?.id ? String(req.user.id) : req.ip;
-  }
+  legacyHeaders: false
 });
 
 module.exports = {

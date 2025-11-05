@@ -85,6 +85,7 @@ exports.roulette = async (req, res) => {
     // ✅ Use MongoDB transaction for atomic balance update + history
     const session = await mongoose.startSession();
     let updatedBalance;
+    let experienceMeta = null;
     
     try {
       await session.withTransaction(async () => {
@@ -102,13 +103,17 @@ exports.roulette = async (req, res) => {
         updatedBalance = updatedUser.balance;
 
         // Record history within transaction
-        await recordGameHistory({
+        const historyResult = await recordGameHistory({
           userId,
           game: 'roulette',
           betAmount,
           outcome: win ? 'win' : 'lose',
           payout:  win ? payout : 0
         }, session);
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience;
+        }
       });
     } finally {
       await session.endSession();
@@ -123,7 +128,8 @@ exports.roulette = async (req, res) => {
       win,
       payout,
       amount: win ? payout : betAmount, // ← added: used by withNotification()
-      balance: updatedBalance
+      balance: updatedBalance,
+      experience: experienceMeta
     });
   } catch (err) {
     console.error(err);

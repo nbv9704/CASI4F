@@ -78,15 +78,20 @@ exports.hitBlackjackDice = async (req, res) => {
 
     // ✅ Use transaction for history recording (no balance change - already deducted)
     const session = await mongoose.startSession()
+    let experienceMeta = null
     try {
       await session.withTransaction(async () => {
-        await recordGameHistory({
+        const historyResult = await recordGameHistory({
           userId,
           game: 'blackjackdice',
           betAmount: state.betAmount,
           outcome: 'lose',
           payout: 0
         }, session)
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience
+        }
       })
     } finally {
       await session.endSession()
@@ -101,7 +106,8 @@ exports.hitBlackjackDice = async (req, res) => {
       payout: 0,
       win: false,              // chỉ set khi kết thúc ván
       amount: state.betAmount, // số tiền người chơi đã thua
-      balance: user.balance
+      balance: user.balance,
+      experience: experienceMeta
     })
   }
 
@@ -148,6 +154,7 @@ exports.standBlackjackDice = async (req, res) => {
   // ✅ Use MongoDB transaction for atomic balance update + history
   const session = await mongoose.startSession()
   let updatedBalance
+  let experienceMeta = null
   
   try {
     await session.withTransaction(async () => {
@@ -172,13 +179,17 @@ exports.standBlackjackDice = async (req, res) => {
         updatedBalance = currentUser.balance
       }
 
-      await recordGameHistory({
+      const historyResult = await recordGameHistory({
         userId,
         game: 'blackjackdice',
         betAmount: state.betAmount,
         outcome,
         payout
       }, session)
+
+      if (historyResult?.experience) {
+        experienceMeta = historyResult.experience
+      }
     })
   } finally {
     await session.endSession()
@@ -205,6 +216,10 @@ exports.standBlackjackDice = async (req, res) => {
     response.amount = state.betAmount // số tiền đã thua
   }
   // outcome === 'tie' -> KHÔNG set win/amount để wrapper bỏ qua
+
+  if (experienceMeta) {
+    response.experience = experienceMeta
+  }
 
   return res.json(response)
 }

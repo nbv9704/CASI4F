@@ -28,8 +28,8 @@ const { roulette } = require('../controllers/minigames/rouletteController');
 const { luckyFive } = require('../controllers/minigames/luckyFiveController');
 const { dice } = require('../controllers/minigames/diceController');
 const { dicePoker } = require('../controllers/minigames/dicePokerController');
-const { higherLower } = require('../controllers/minigames/higherLowerController');
-const { startMines, pickMines } = require('../controllers/minigames/minesController');
+const { higherLower, getState } = require('../controllers/minigames/higherLowerController');
+const { startMines, pickMines, cashoutMines } = require('../controllers/minigames/minesController');
 const { startTower, ascendTower, cashoutTower } = require('../controllers/minigames/towerController');
 const {
   startBlackjackDice,
@@ -40,14 +40,15 @@ const {
   resumeBlackjackDice,
 } = require('../controllers/minigames/blackjackDiceController');
 
-// ✅ Apply rate limit to all game endpoints
-const { pvpActionLimiter } = require('../middleware/rateLimitStrict');
-router.use(pvpActionLimiter);
+// ✅ Apply rate limit to all game endpoints (60 actions per minute)
+const { pvpActionLimiter: gameActionLimiter } = require('../middleware/rateLimitStrict');
+router.use(gameActionLimiter);
 
 // ✅ Wrap controllers with asyncHandler + validation
 router.post('/coinflip', auth, validateRequest(coinflipSchema, 'body'), asyncHandler(withNotification(coinflip, 'Coinflip')));
 router.post('/roulette', auth, validateRequest(rouletteSchema, 'body'), asyncHandler(withNotification(roulette, 'Roulette')));
 router.post('/dice', auth, validateRequest(diceSchema, 'body'), asyncHandler(withNotification(dice, 'Dice')));
+router.post('/higherlower/state', auth, asyncHandler(getState));
 router.post('/higherlower', auth, validateRequest(higherLowerSchema, 'body'), asyncHandler(withNotification(higherLower, 'Higher Lower')));
 router.post('/slots', auth, validateRequest(slotsSchema, 'body'), asyncHandler(withNotification(slots, 'Slots')));
 router.post('/luckyfive', auth, validateRequest(luckyFiveSchema, 'body'), asyncHandler(withNotification(luckyFive, 'Lucky Five')));
@@ -55,6 +56,7 @@ router.post('/dicepoker', auth, validateRequest(dicePokerSchema, 'body'), asyncH
 
 router.post('/mines/start', auth, validateRequest(minesStartSchema, 'body'), asyncHandler(startMines));
 router.post('/mines/pick', auth, validateRequest(minesPickSchema, 'body'), asyncHandler(pickMines));
+router.post('/mines/cashout', auth, asyncHandler(withNotification(cashoutMines, 'Mines')));
 
 router.post('/tower/start', auth, validateRequest(towerStartSchema, 'body'), asyncHandler(startTower));
 router.post('/tower/ascend', auth, asyncHandler(ascendTower));

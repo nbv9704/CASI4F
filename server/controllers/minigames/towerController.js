@@ -72,16 +72,21 @@ exports.ascendTower = async (req, res) => {
     towerGames.delete(userId);
 
     // ✅ Use transaction for history recording (no balance change - already deducted)
+    let experienceMeta = null;
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
-        await recordGameHistory({
+        const historyResult = await recordGameHistory({
           userId,
           game: 'tower',
           betAmount: state.betAmount,
           outcome: 'lose',
           payout: 0
         }, session);
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience;
+        }
       });
     } finally {
       await session.endSession();
@@ -93,7 +98,8 @@ exports.ascendTower = async (req, res) => {
       payout: 0,
       balance: user.balance,
       win: false,
-      amount: state.betAmount // để wrapper bắn "game_loss"
+      amount: state.betAmount, // để wrapper bắn "game_loss"
+      experience: experienceMeta
     });
   }
 
@@ -107,6 +113,7 @@ exports.ascendTower = async (req, res) => {
     // ✅ Use MongoDB transaction for atomic balance update + history
     const session = await mongoose.startSession();
     let updatedBalance;
+    let experienceMeta = null;
     
     try {
       await session.withTransaction(async () => {
@@ -122,13 +129,17 @@ exports.ascendTower = async (req, res) => {
 
         updatedBalance = updatedUser.balance;
 
-        await recordGameHistory({
+        const historyResult = await recordGameHistory({
           userId,
           game: 'tower',
           betAmount: state.betAmount,
           outcome: 'win',
           payout
         }, session);
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience;
+        }
       });
     } finally {
       await session.endSession();
@@ -143,15 +154,19 @@ exports.ascendTower = async (req, res) => {
       payout,
       balance: updatedBalance,
       win: true,
-      amount: payout // để wrapper bắn "game_win"
+      amount: payout, // để wrapper bắn "game_win"
+      experience: experienceMeta
     });
   }
 
   // Continue playing (chưa kết thúc -> KHÔNG thêm win/amount)
+  const multiplier = LEVEL_MULTIPLIERS[state.currentLevel];
   return res.json({
     message: `Success! You are now at level ${state.currentLevel}.`,
-    currentLevel: state.currentLevel,
-    balance: user.balance
+    level: state.currentLevel,
+    multiplier,
+    balance: user.balance,
+    success: true  // để frontend biết là thành công climb
   });
 };
 
@@ -176,6 +191,7 @@ exports.cashoutTower = async (req, res) => {
   // ✅ Use MongoDB transaction for atomic balance update + history
   const session = await mongoose.startSession();
   let updatedBalance;
+  let experienceMeta = null;
   
   try {
     await session.withTransaction(async () => {
@@ -191,13 +207,17 @@ exports.cashoutTower = async (req, res) => {
 
       updatedBalance = updatedUser.balance;
 
-      await recordGameHistory({
+      const historyResult = await recordGameHistory({
         userId,
         game: 'tower',
         betAmount: state.betAmount,
         outcome: 'win',
         payout
       }, session);
+
+      if (historyResult?.experience) {
+        experienceMeta = historyResult.experience;
+      }
     });
   } finally {
     await session.endSession();
@@ -212,6 +232,7 @@ exports.cashoutTower = async (req, res) => {
     payout,
     balance: updatedBalance,
     win: true,
-    amount: payout // để wrapper bắn "game_win"
+    amount: payout, // để wrapper bắn "game_win"
+    experience: experienceMeta
   });
 };

@@ -30,6 +30,10 @@ async function initializeUserSeeds(user) {
   user.serverSeedHash = serverSeedHash;
   user.clientSeed = clientSeed;
   user.nonce = 0;
+  user.serverSeedRotatedAt = new Date();
+  if (!user.clientSeedUpdatedAt) {
+    user.clientSeedUpdatedAt = new Date();
+  }
   
   await user.save();
   
@@ -72,16 +76,28 @@ async function incrementNonce(user) {
  */
 async function rotateServerSeed(user) {
   const oldServerSeed = user.serverSeed;
+  const oldServerSeedHash = user.serverSeedHash;
   const newServerSeed = makeServerSeed();
   const newServerSeedHash = sha256(newServerSeed);
-  
+
+  if (oldServerSeed) {
+    user.lastServerSeed = oldServerSeed;
+    user.lastServerSeedHash = oldServerSeedHash;
+    user.lastServerSeedRevealAt = new Date();
+  }
+
   user.serverSeed = newServerSeed;
   user.serverSeedHash = newServerSeedHash;
+  user.serverSeedRotatedAt = new Date();
   user.nonce = 0; // Reset nonce on seed rotation
   
   await user.save();
   
-  return { oldServerSeed, newServerSeed, newServerSeedHash };
+  return {
+    revealedServerSeed: oldServerSeed,
+    revealedServerSeedHash: oldServerSeedHash,
+    newServerSeedHash,
+  };
 }
 
 /**
@@ -92,6 +108,7 @@ async function rotateServerSeed(user) {
  */
 async function updateClientSeed(user, newClientSeed) {
   user.clientSeed = String(newClientSeed);
+  user.clientSeedUpdatedAt = new Date();
   user.nonce = 0; // Reset nonce on client seed change
   await user.save();
   return user.clientSeed;
@@ -124,6 +141,19 @@ function verify({ serverSeed, clientSeed, nonce, result }) {
   return coinflip({ serverSeed, clientSeed, nonce }) === result;
 }
 
+/**
+ * Provably fair dice roll (1-maxValue)
+ * @param {string} serverSeed - Server seed
+ * @param {string} clientSeed - Client seed
+ * @param {number} nonce - Nonce counter
+ * @param {number} maxValue - Max dice value (e.g., 6 for standard dice)
+ * @returns {number} Dice roll result (1 to maxValue)
+ */
+function provablyFairDiceRoll(serverSeed, clientSeed, nonce, maxValue = 6) {
+  const float = hmacFloat({ serverSeed, clientSeed, nonce });
+  return Math.floor(float * maxValue) + 1;
+}
+
 module.exports = {
   // seed generation
   makeServerSeed,
@@ -140,4 +170,5 @@ module.exports = {
   hmacFloat,
   coinflip,
   verify,
+  provablyFairDiceRoll,
 };

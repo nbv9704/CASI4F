@@ -10,6 +10,27 @@ const MULTIPLIER_STEP = 0.5
 const DEFAULT_INITIAL = 10
 
 /**
+ * POST /api/game/higherlower/state
+ * Get current game state (last number and streak)
+ */
+exports.getState = async (req, res) => {
+  try {
+    const userId = req.user.id
+    const user = await User.findById(userId).select('higherLowerLastNumber higherLowerStreak')
+    
+    if (!user) return res.status(404).json({ error: 'User not found' })
+
+    return res.json({
+      lastNumber: user.higherLowerLastNumber ?? DEFAULT_INITIAL,
+      streak: user.higherLowerStreak || 0
+    })
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'Server error' })
+  }
+}
+
+/**
  * POST /api/game/higherlower
  * Body: { betAmount: number, guess: 'higher'|'lower' }
  */
@@ -70,6 +91,7 @@ exports.higherLower = async (req, res) => {
     // ✅ Use MongoDB transaction for atomic balance + state update + history
     const session = await mongoose.startSession()
     let updatedBalance, updatedStreak
+    let experienceMeta = null
     
     try {
       await session.withTransaction(async () => {
@@ -97,9 +119,13 @@ exports.higherLower = async (req, res) => {
         const outcome = tie ? 'tie' : win ? 'win' : 'lose'
 
         // Record history within transaction
-        await recordGameHistory({ 
+        const historyResult = await recordGameHistory({ 
           userId, game: 'higherlower', betAmount, outcome, payout 
         }, session)
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience
+        }
       })
     } finally {
       await session.endSession()
@@ -123,7 +149,8 @@ exports.higherLower = async (req, res) => {
       streak: updatedStreak,
       payout,
       amount,              // ← thêm trường amount
-      balance: updatedBalance
+      balance: updatedBalance,
+      experience: experienceMeta
     })
   } catch (err) {
     console.error(err)

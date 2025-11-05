@@ -3,7 +3,7 @@
 const Joi = require('joi');
 
 // Allowed games
-const GAMES = ['coinflip', 'dice', 'blackjackdice', 'roulette', 'slots'];
+const GAMES = ['coinflip', 'dice', 'blackjackdice', 'dicepoker', 'roulette', 'slots'];
 
 // Create Room
 const createRoomSchema = Joi.object({

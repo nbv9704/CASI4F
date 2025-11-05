@@ -78,8 +78,9 @@ exports.slots = async (req, res) => {
     const delta = payout - betAmount;
 
     // ✅ Use MongoDB transaction for atomic balance update + history
-    const session = await mongoose.startSession();
-    let updatedBalance;
+  const session = await mongoose.startSession();
+  let updatedBalance;
+  let experienceMeta = null;
     
     try {
       await session.withTransaction(async () => {
@@ -97,13 +98,17 @@ exports.slots = async (req, res) => {
         updatedBalance = updatedUser.balance;
 
         // Record history within transaction
-        await recordGameHistory({
+        const historyResult = await recordGameHistory({
           userId,
           game: 'slots',
           betAmount,
           outcome: totalMultiplier > 0 ? 'win' : 'lose',
           payout
         }, session);
+
+        if (historyResult?.experience) {
+          experienceMeta = historyResult.experience;
+        }
       });
     } finally {
       await session.endSession();
@@ -120,7 +125,8 @@ exports.slots = async (req, res) => {
       payout,
       amount: win ? payout : betAmount, // ← thêm để wrapper đọc
       balance: updatedBalance,
-      winningLines
+      winningLines,
+      experience: experienceMeta
     });
   } catch (err) {
     console.error(err);

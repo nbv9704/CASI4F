@@ -12,11 +12,19 @@ const userSchema = new mongoose.Schema({
   bank:                  { type: Number, default: 0 },
   avatar:                { type: String, default: '' }, // URL ảnh profile
   dateOfBirth:           { type: Date, default: null }, // Ngày sinh
+  level:                 { type: Number, default: 1 },
+  experience:            { type: Number, default: 0 },
+  lastCheckInAt:         { type: Date, default: null },
   // Provably Fair seeds (per-user)
   serverSeed:            { type: String, default: null }, // Current active server seed
   serverSeedHash:        { type: String, default: null }, // SHA-256 of serverSeed (committed to user)
   clientSeed:            { type: String, default: null }, // User's client seed (can be customized)
   nonce:                 { type: Number, default: 0 },    // Incremented per game
+  lastServerSeed:        { type: String, default: null }, // The most recently revealed server seed
+  lastServerSeedHash:    { type: String, default: null }, // Hash associated with the revealed server seed
+  lastServerSeedRevealAt:{ type: Date, default: null },   // When we revealed the previous server seed
+  serverSeedRotatedAt:   { type: Date, default: null },   // When the current server seed was generated
+  clientSeedUpdatedAt:   { type: Date, default: null },   // When the client seed was last changed
   // Reward cooldowns
   hourlyCollectedAt:     { type: Date, default: null },
   dailyCollectedAt:      { type: Date, default: null },

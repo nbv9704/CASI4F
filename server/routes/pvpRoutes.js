@@ -9,6 +9,8 @@ const { AppError } = require('../utils/AppError');
 const { ErrorCodes } = require('../utils/ErrorCodes');
 
 const { makeServerSeed, sha256, coinflip, hmacHex } = require('../utils/fair');
+const { startDicePoker } = require('../controllers/pvp/dicePokerController');
+const { startBlackjackDice, hitBlackjackDice, standBlackjackDice } = require('../controllers/pvp/blackjackDiceController');
 const { logBalanceChange } = require('../utils/balanceLog');
 const asyncHandler = require('../middleware/asyncHandler');
 const validateRequest = require('../middleware/validateRequest');
@@ -476,6 +478,67 @@ router.post(
       return res.json(sanitizeRoomWithNow(room));
     }
 
+    // ===== DICE POKER =====
+    if (room.game === 'dicepoker') {
+      const io = getIO(req);
+      await startDicePoker(io, room);
+      
+      room.status = 'finished';
+      room.metadata = md;
+      room.markModified('metadata');
+      await room.save();
+
+      // Pay winners
+      const winners = md.dicePoker?.winners || [];
+      const pot = bet * room.players.length;
+      const winnerShare = winners.length > 0 ? Math.floor(pot / winners.length) : 0;
+
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          if (winners.length > 0) {
+            for (const wId of winners) {
+              const upd = await User.findOneAndUpdate(
+                { _id: wId },
+                { $inc: { balance: winnerShare } },
+                { new: true, session }
+              ).select('balance');
+              await logBalanceChange(
+                { userId: wId, roomId: room.roomId, delta: winnerShare, reason: 'payout_dicepoker', balanceAfter: upd?.balance },
+                session
+              );
+            }
+          }
+        });
+      } finally {
+        await session.endSession();
+      }
+
+      emitRoomEvent(io, room.roomId, 'pvp:roomFinished', {
+        room: sanitizeRoomWithNow(room),
+        serverNow: Date.now(),
+      });
+
+      return res.json(sanitizeRoomWithNow(room));
+    }
+
+    // ===== BLACKJACK DICE =====
+    if (room.game === 'blackjackdice') {
+      const io = getIO(req);
+      await startBlackjackDice(io, room);
+      
+      room.status = 'active';
+      room.markModified('metadata');
+      await room.save();
+
+      emitRoomEvent(io, room.roomId, 'pvp:roomUpdated', {
+        room: sanitizeRoomWithNow(room),
+        serverNow: Date.now(),
+      });
+
+      return res.json(sanitizeRoomWithNow(room));
+    }
+
     res.json(sanitizeRoomWithNow(room));
   })
 );
@@ -643,6 +706,130 @@ router.post(
       } catch {}
     }, ROLL_REVEAL_MS + HOLD_AFTER_REVEAL_MS);
 
+    return res.json(sanitizeRoomWithNow(room));
+  })
+);
+
+// ---------- BLACKJACK DICE: HIT ----------
+router.post(
+  '/:roomId/hit',
+  auth,
+  pvpActionLimiter,
+  asyncHandler(async (req, res) => {
+    const room = await PvpRoom.findOne({ roomId: req.params.roomId });
+    if (!room) throw new AppError(ErrorCodes.PVP_ROOM_NOT_FOUND, 404, 'Không tìm thấy phòng');
+    if (room.game !== 'blackjackdice') throw new AppError('NOT_BLACKJACK_DICE', 400, 'Không phải phòng Blackjack Dice');
+    if (room.status !== 'active') throw new AppError(ErrorCodes.PVP_ROOM_NOT_ACTIVE, 409, 'Phòng chưa active');
+
+    const io = getIO(req);
+    await hitBlackjackDice(io, room, req.user.id);
+
+    // Check if game finished
+    if (room.metadata.blackjackDice.phase === 'finished') {
+      room.status = 'finished';
+      
+      // Pay winners
+      const winners = room.metadata.blackjackDice.winners || [];
+      const bet = Number(room.betAmount || 0);
+      const pot = bet * room.players.length;
+      const winnerShare = winners.length > 0 ? Math.floor(pot / winners.length) : 0;
+
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          if (winners.length > 0) {
+            for (const wId of winners) {
+              const upd = await User.findOneAndUpdate(
+                { _id: wId },
+                { $inc: { balance: winnerShare } },
+                { new: true, session }
+              ).select('balance');
+              await logBalanceChange(
+                { userId: wId, roomId: room.roomId, delta: winnerShare, reason: 'payout_blackjackdice', balanceAfter: upd?.balance },
+                session
+              );
+            }
+          }
+        });
+      } finally {
+        await session.endSession();
+      }
+
+      emitRoomEvent(io, room.roomId, 'pvp:roomFinished', {
+        room: sanitizeRoomWithNow(room),
+        serverNow: Date.now(),
+      });
+    } else {
+      emitRoomEvent(io, room.roomId, 'pvp:roomUpdated', {
+        room: sanitizeRoomWithNow(room),
+        serverNow: Date.now(),
+      });
+    }
+
+    room.markModified('metadata');
+    await room.save();
+    return res.json(sanitizeRoomWithNow(room));
+  })
+);
+
+// ---------- BLACKJACK DICE: STAND ----------
+router.post(
+  '/:roomId/stand',
+  auth,
+  pvpActionLimiter,
+  asyncHandler(async (req, res) => {
+    const room = await PvpRoom.findOne({ roomId: req.params.roomId });
+    if (!room) throw new AppError(ErrorCodes.PVP_ROOM_NOT_FOUND, 404, 'Không tìm thấy phòng');
+    if (room.game !== 'blackjackdice') throw new AppError('NOT_BLACKJACK_DICE', 400, 'Không phải phòng Blackjack Dice');
+    if (room.status !== 'active') throw new AppError(ErrorCodes.PVP_ROOM_NOT_ACTIVE, 409, 'Phòng chưa active');
+
+    const io = getIO(req);
+    await standBlackjackDice(io, room, req.user.id);
+
+    // Check if game finished
+    if (room.metadata.blackjackDice.phase === 'finished') {
+      room.status = 'finished';
+      
+      // Pay winners
+      const winners = room.metadata.blackjackDice.winners || [];
+      const bet = Number(room.betAmount || 0);
+      const pot = bet * room.players.length;
+      const winnerShare = winners.length > 0 ? Math.floor(pot / winners.length) : 0;
+
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          if (winners.length > 0) {
+            for (const wId of winners) {
+              const upd = await User.findOneAndUpdate(
+                { _id: wId },
+                { $inc: { balance: winnerShare } },
+                { new: true, session }
+              ).select('balance');
+              await logBalanceChange(
+                { userId: wId, roomId: room.roomId, delta: winnerShare, reason: 'payout_blackjackdice', balanceAfter: upd?.balance },
+                session
+              );
+            }
+          }
+        });
+      } finally {
+        await session.endSession();
+      }
+
+      emitRoomEvent(io, room.roomId, 'pvp:roomFinished', {
+        room: sanitizeRoomWithNow(room),
+        serverNow: Date.now(),
+      });
+    } else {
+      emitRoomEvent(io, room.roomId, 'pvp:roomUpdated', {
+        room: sanitizeRoomWithNow(room),
+        serverNow: Date.now(),
+      });
+    }
+
+    room.markModified('metadata');
+    await room.save();
     return res.json(sanitizeRoomWithNow(room));
   })
 );

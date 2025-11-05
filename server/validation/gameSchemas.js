@@ -41,7 +41,7 @@ const slotsSchema = Joi.object({
 // Lucky Five
 const luckyFiveSchema = Joi.object({
   betAmount: Joi.number().min(1).required(),
-  numbers: Joi.array().items(Joi.number().min(1).max(100)).length(5).required(),
+  numbers: Joi.array().items(Joi.number().min(0).max(30)).length(5).required(),
   colors: Joi.array().items(Joi.string().valid('red', 'orange', 'yellow', 'green', 'blue')).length(5).required(),
 });
 

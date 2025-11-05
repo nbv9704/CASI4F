@@ -78,8 +78,6 @@ function WalletPage() {
 		[locale]
 	)
 
-	if (!user) return <Loading text={t('common.loginRequiredWallet')} />
-
 	const handleTransfer = async (e) => {
 		e.preventDefault()
 		const amountValue = Number(transferAmt)
@@ -252,6 +250,10 @@ function WalletPage() {
 			}
 		})
 	}, [formatCurrency, pagedTxs, t])
+
+	if (!user) {
+		return <Loading text={t('common.loginRequiredWallet')} />
+	}
 
 	return (
 		<div className="space-y-8">

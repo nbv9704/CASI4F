@@ -68,7 +68,7 @@ function SettingsPage() {
   const avatarButtonLabel = translate("settings.profileCard.avatarUpload", "Add image");
   const avatarHint = translate(
     "settings.profileCard.avatarHint",
-    "PNG, JPG or WEBP recommended. We crop to a square and optimise up to 512KB.",
+    "PNG, JPG or WEBP recommended.",
   );
 
   const triggerAvatarPicker = useCallback(() => {

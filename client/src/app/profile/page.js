@@ -56,6 +56,7 @@ function ProfilePage() {
                 sizes="112px"
                 className="object-cover"
                 priority
+                unoptimized
               />
               <span className="absolute inset-0 rounded-3xl border border-white/10" />
             </div>

@@ -2,7 +2,7 @@
 "use client";
 
 import RequireAuth from "@/components/RequireAuth";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Image from "next/image";
 import useApi from "../../hooks/useApi";
 import { useUser } from "../../context/UserContext";
@@ -36,6 +36,7 @@ function SettingsPage() {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (!user) return;
@@ -44,6 +45,50 @@ function SettingsPage() {
     setAvatar(user.avatar || "");
     setDateOfBirth(user.dateOfBirth ? user.dateOfBirth.split("T")[0] : "");
   }, [user]);
+
+  const triggerAvatarPicker = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleAvatarFileChange = useCallback(
+    (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      if (!file.type.startsWith("image/")) {
+        toast.error(t("settings.toast.avatarInvalidType") || "Unsupported image type");
+        event.target.value = "";
+        return;
+      }
+
+      const maxBytes = 1024 * 512;
+      if (file.size > maxBytes) {
+        toast.error(
+          t("settings.toast.avatarTooLarge", { size: "512KB" }) || "Image exceeds 512KB",
+        );
+        event.target.value = "";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result === "string") {
+          setAvatar(result);
+          toast.success(t("settings.toast.avatarPreviewReady") || "Preview updated");
+        } else {
+          toast.error(t("settings.toast.avatarReadFailed") || "Failed to read image");
+        }
+        event.target.value = "";
+      };
+      reader.onerror = () => {
+        toast.error(t("settings.toast.avatarReadFailed") || "Failed to read image");
+        event.target.value = "";
+      };
+      reader.readAsDataURL(file);
+    },
+    [t],
+  );
 
   const inputClassName = useMemo(
     () =>
@@ -132,6 +177,7 @@ function SettingsPage() {
                 sizes="96px"
                 className="object-cover"
                 priority
+                unoptimized
               />
               <span className="absolute inset-0 rounded-2xl border border-white/10" />
             </div>
@@ -207,12 +253,28 @@ function SettingsPage() {
                 <ImageIcon className="h-4 w-4 text-blue-300" />
                 {t("settings.profileCard.avatar")}
               </label>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  type="text"
+                  value={avatar}
+                  onChange={(e) => setAvatar(e.target.value)}
+                  className={inputClassName}
+                  placeholder="https://"
+                />
+                <button
+                  type="button"
+                  onClick={triggerAvatarPicker}
+                  className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/60 hover:bg-white/20"
+                >
+                  {t("settings.profileCard.avatarUpload")}
+                </button>
+              </div>
               <input
-                type="text"
-                value={avatar}
-                onChange={(e) => setAvatar(e.target.value)}
-                className={inputClassName}
-                placeholder="https://"
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarFileChange}
               />
             </div>
             <div className="space-y-2">

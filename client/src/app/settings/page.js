@@ -49,6 +49,17 @@ function SettingsPage() {
     setDateOfBirth(user.dateOfBirth ? user.dateOfBirth.split("T")[0] : "");
   }, [user]);
 
+  const translate = useCallback(
+    (key, fallback, options) => {
+      const result = t(key, options);
+      if (result && result !== key) {
+        return result;
+      }
+      return fallback;
+    },
+    [t],
+  );
+
   const triggerAvatarPicker = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -153,7 +164,9 @@ function SettingsPage() {
       if (!file) return;
 
       if (!file.type.startsWith("image/")) {
-        toast.error(t("settings.toast.avatarInvalidType") || "Unsupported image type");
+        toast.error(
+          translate("settings.toast.avatarInvalidType", "Unsupported image type"),
+        );
         event.target.value = "";
         return;
       }
@@ -162,19 +175,22 @@ function SettingsPage() {
         const processed = await processAvatarFile(file);
         setAvatar(processed);
         toast.success(
-          t("settings.toast.avatarProcessed") || "Avatar cropped and preview updated",
+          translate(
+            "settings.toast.avatarProcessed",
+            "Avatar cropped and preview updated",
+          ),
         );
       } catch (error) {
         toast.error(
           error instanceof Error && error.message
             ? error.message
-            : t("settings.toast.avatarProcessFailed") || "Could not update avatar",
+            : translate("settings.toast.avatarProcessFailed", "Could not update avatar"),
         );
       } finally {
         event.target.value = "";
       }
     },
-    [processAvatarFile, t],
+    [processAvatarFile, translate],
   );
 
   const inputClassName = useMemo(
@@ -192,7 +208,9 @@ function SettingsPage() {
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     if (!currentPassword) {
-  toast.error(t("settings.toast.currentPasswordMissing") || "Current password required");
+      toast.error(
+        translate("settings.toast.currentPasswordMissing", "Current password required"),
+      );
       return;
     }
 
@@ -206,10 +224,14 @@ function SettingsPage() {
         currentPassword,
       });
       await fetchUser();
-  toast.success(t("settings.toast.profileUpdated") || "Profile updated successfully");
+      toast.success(
+        translate("settings.toast.profileUpdated", "Profile updated successfully"),
+      );
       setCurrentPassword("");
     } catch (err) {
-  toast.error(err.message || t("common.unexpectedError") || "Something went wrong");
+      toast.error(
+        err.message || translate("common.unexpectedError", "Something went wrong"),
+      );
     } finally {
       setSavingProfile(false);
     }
@@ -218,19 +240,25 @@ function SettingsPage() {
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmNewPassword) {
-  toast.error(t("settings.toast.passwordMismatch") || "Passwords do not match");
+      toast.error(
+        translate("settings.toast.passwordMismatch", "Passwords do not match"),
+      );
       return;
     }
 
     setChangingPassword(true);
     try {
       await post("/user/me/password", { oldPassword, newPassword });
-  toast.success(t("settings.toast.passwordUpdated") || "Password updated successfully");
+      toast.success(
+        translate("settings.toast.passwordUpdated", "Password updated successfully"),
+      );
       setOldPassword("");
       setNewPassword("");
       setConfirmNewPassword("");
     } catch (err) {
-  toast.error(err.message || t("common.unexpectedError") || "Something went wrong");
+      toast.error(
+        err.message || translate("common.unexpectedError", "Something went wrong"),
+      );
     } finally {
       setChangingPassword(false);
     }
@@ -238,14 +266,14 @@ function SettingsPage() {
 
   const handleCopyId = () => {
     if (!user?.id || typeof navigator === "undefined" || !navigator.clipboard) {
-  toast.error(t("common.copyUnsupported") || "Copy is not supported here");
+      toast.error(translate("common.copyUnsupported", "Copy is not supported here"));
       return;
     }
 
     navigator.clipboard
       .writeText(user.id)
-  .then(() => toast.success(t("common.copySuccess") || "Copied"))
-  .catch(() => toast.error(t("common.copyFailure") || "Failed to copy"));
+      .then(() => toast.success(translate("common.copySuccess", "Copied")))
+      .catch(() => toast.error(translate("common.copyFailure", "Failed to copy")));
   };
 
   if (!user) return <Loading text={t("loading.settings")} />;
@@ -338,7 +366,10 @@ function SettingsPage() {
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-white/60">
                 <ImageIcon className="h-4 w-4 text-blue-300" />
-                {t("settings.profileCard.avatar")}
+                {(() => {
+                  const label = translate("settings.profileCard.avatar", "Avatar");
+                  return label?.toLowerCase().includes("url") ? "Avatar" : label;
+                })()}
               </label>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <button
@@ -347,11 +378,13 @@ function SettingsPage() {
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/60 hover:bg-white/20"
                 >
                   <ImageIcon className="h-4 w-4" />
-                  <span>{t("settings.profileCard.avatarUpload") || "Add image"}</span>
+                  <span>{translate("settings.profileCard.avatarUpload", "Add image")}</span>
                 </button>
                 <p className="text-xs text-white/50">
-                  {t("settings.profileCard.avatarHint") ||
-                    "PNG, JPG or WEBP recommended. We crop to a square and optimise up to 512KB."}
+                  {translate(
+                    "settings.profileCard.avatarHint",
+                    "PNG, JPG or WEBP recommended. We crop to a square and optimise up to 512KB.",
+                  )}
                 </p>
               </div>
               <input

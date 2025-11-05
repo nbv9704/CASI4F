@@ -92,7 +92,7 @@ export default function Navbar() {
   return (
     <>
       <nav className='sticky top-0 z-40 border-b border-white/10 bg-[#070b1f]/80 backdrop-blur-xl shadow-[0_32px_120px_-48px_rgba(15,23,42,0.85)] supports-[backdrop-filter]:bg-[#070b1f]/70'>
-        <div className='relative isolate overflow-hidden'>
+        <div className='relative isolate overflow-visible'>
           <div
             className='pointer-events-none absolute -left-32 top-1/2 h-52 w-52 -translate-y-1/2 rounded-full bg-rose-500/20 blur-3xl'
             aria-hidden='true'

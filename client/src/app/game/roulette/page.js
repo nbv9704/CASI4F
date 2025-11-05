@@ -5,6 +5,7 @@ import RequireAuth from '@/components/RequireAuth'
 import { useState } from 'react'
 import useApi from '@/hooks/useApi'
 import { useUser } from '@/context/UserContext'
+import useExperienceSync from '@/hooks/useExperienceSync'
 import { toast } from 'react-hot-toast'
 
 // Số trên bánh xe (European style: 0-36)
@@ -24,7 +25,8 @@ const RANGES = ['1-9', '10-18', '19-27', '28-36']
 
 function RoulettePage() {
   const { post } = useApi()
-  const { updateBalance } = useUser()
+  const { balance, updateBalance } = useUser()
+  const syncExperience = useExperienceSync()
 
   const [betAmount, setBetAmount] = useState(5)
   const [betType, setBetType] = useState('color') // 'zero' | 'range' | 'color' | 'number'
@@ -82,6 +84,7 @@ function RoulettePage() {
       setTimeout(() => {
         setResult(data.result)
         updateBalance(data.balance)
+        syncExperience(data)
         setSpinning(false)
 
         if (data.win) {
@@ -97,11 +100,17 @@ function RoulettePage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Roulette</h1>
+    <div className="min-h-screen bg-gradient-to-br from-red-900 via-black to-green-900 p-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">🎡 Roulette</h1>
+          <p className="text-gray-300">Spin the wheel, pick your destiny!</p>
+          <div className="mt-4 text-xl text-yellow-400">Balance: {balance} coins</div>
+        </div>
 
-      {/* Wheel */}
-      <div className="flex justify-center mb-8">
+        {/* Wheel */}
+        <div className="flex justify-center mb-8">
         <div className="relative w-64 h-64">
           {/* Wheel SVG */}
           <svg
@@ -149,158 +158,173 @@ function RoulettePage() {
         </div>
       </div>
 
-      {/* Result */}
-      {result && !spinning && (
-        <div className="text-center mb-6 p-4 rounded-xl border-2 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20">
-          <div className="text-2xl font-bold">
-            Result: <span className={`${result.color === 'red' ? 'text-red-500' : result.color === 'black' ? 'text-gray-900 dark:text-white' : 'text-green-500'}`}>
-              {result.number} ({result.color.toUpperCase()})
-            </span>
+        {/* Result */}
+        {result && !spinning && (
+          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6">
+            <div className={`text-center p-6 rounded-lg ${result.payout > 0 ? 'bg-green-500/30' : 'bg-red-500/30'}`}>
+              <p className="text-white text-lg font-semibold mb-2">
+                {result.payout > 0 ? '🎉 YOU WON!' : '😢 YOU LOST'}
+              </p>
+              <div className="text-6xl font-bold mb-2">
+                <span className={`${result.color === 'red' ? 'text-red-500' : result.color === 'black' ? 'text-white' : 'text-green-400'}`}>
+                  {result.number}
+                </span>
+              </div>
+              <p className="text-white text-xl font-semibold">
+                {result.color.toUpperCase()}
+              </p>
+              <p className="text-white text-3xl font-bold mt-4">
+                {result.payout > 0 ? `+${result.payout}` : `-${betAmount}`} coins
+              </p>
+            </div>
           </div>
-          <div className="text-lg mt-2">Payout: {result.payout}</div>
-        </div>
-      )}
+        )}
 
-      {/* Betting Form */}
-      <form onSubmit={handleSpin} className="space-y-6 max-w-2xl mx-auto">
-        {/* Bet Amount */}
-        <div>
-          <label className="block mb-2 font-medium">Bet Amount:</label>
-          <input
-            type="number"
-            min="5"
-            value={betAmount}
-            onChange={(e) => setBetAmount(+e.target.value)}
-            className="w-full border rounded-xl px-4 py-2 bg-white dark:bg-gray-800"
-            disabled={spinning}
-          />
-        </div>
-
-        {/* Bet Type */}
-        <div>
-          <label className="block mb-2 font-medium">Bet Type:</label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <button
-              type="button"
-              onClick={() => { setBetType('zero'); setBetValue('0') }}
-              className={`px-4 py-2 rounded-xl border-2 ${betType === 'zero' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-300'}`}
+        {/* Betting Form */}
+        <form onSubmit={handleSpin} className="space-y-6">
+          {/* Bet Amount */}
+          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
+            <label className="block text-white font-semibold mb-2">Bet Amount:</label>
+            <input
+              type="number"
+              min="5"
+              value={betAmount}
+              onChange={(e) => setBetAmount(+e.target.value)}
+              className="w-full px-4 py-3 rounded bg-white/20 text-white text-lg font-bold border-2 border-white/30"
               disabled={spinning}
-            >
-              Zero (16x)
-            </button>
-            <button
-              type="button"
-              onClick={() => { setBetType('color'); setBetValue('red') }}
-              className={`px-4 py-2 rounded-xl border-2 ${betType === 'color' ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-300'}`}
-              disabled={spinning}
-            >
-              Color (2x)
-            </button>
-            <button
-              type="button"
-              onClick={() => { setBetType('range'); setBetValue('1-9') }}
-              className={`px-4 py-2 rounded-xl border-2 ${betType === 'range' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300'}`}
-              disabled={spinning}
-            >
-              Range (4x)
-            </button>
-            <button
-              type="button"
-              onClick={() => { setBetType('number'); setBetValue('7') }}
-              className={`px-4 py-2 rounded-xl border-2 ${betType === 'number' ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-300'}`}
-              disabled={spinning}
-            >
-              Number (36x)
-            </button>
+            />
           </div>
-        </div>
 
-        {/* Bet Value Selection */}
-        <div>
-          <label className="block mb-2 font-medium">Select Your Bet:</label>
-          
-          {betType === 'color' && (
-            <div className="flex gap-2">
+          {/* Bet Type */}
+          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
+            <label className="block text-white font-semibold mb-4">Bet Type:</label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <button
                 type="button"
-                onClick={() => setBetValue('red')}
-                className={`flex-1 px-4 py-3 rounded-xl border-2 ${betValue === 'red' ? 'border-red-500 bg-red-500 text-white' : 'border-red-300 bg-red-50 dark:bg-red-900/20 text-red-600'}`}
+                onClick={() => { setBetType('zero'); setBetValue('0') }}
+                className={`px-4 py-3 rounded-lg border-2 transition-all ${betType === 'zero' ? 'bg-green-500/30 border-green-400 ring-2 ring-green-400' : 'bg-white/10 border-white/30 hover:border-white/50'}`}
                 disabled={spinning}
               >
-                RED
+                <div className="text-white font-bold">Zero</div>
+                <div className="text-green-400 text-sm">16x</div>
               </button>
               <button
                 type="button"
-                onClick={() => setBetValue('black')}
-                className={`flex-1 px-4 py-3 rounded-xl border-2 ${betValue === 'black' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-400 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'}`}
+                onClick={() => { setBetType('color'); setBetValue('red') }}
+                className={`px-4 py-3 rounded-lg border-2 transition-all ${betType === 'color' ? 'bg-red-500/30 border-red-400 ring-2 ring-red-400' : 'bg-white/10 border-white/30 hover:border-white/50'}`}
                 disabled={spinning}
               >
-                BLACK
+                <div className="text-white font-bold">Color</div>
+                <div className="text-red-400 text-sm">2x</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setBetType('range'); setBetValue('1-9') }}
+                className={`px-4 py-3 rounded-lg border-2 transition-all ${betType === 'range' ? 'bg-blue-500/30 border-blue-400 ring-2 ring-blue-400' : 'bg-white/10 border-white/30 hover:border-white/50'}`}
+                disabled={spinning}
+              >
+                <div className="text-white font-bold">Range</div>
+                <div className="text-blue-400 text-sm">4x</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setBetType('number'); setBetValue('7') }}
+                className={`px-4 py-3 rounded-lg border-2 transition-all ${betType === 'number' ? 'bg-purple-500/30 border-purple-400 ring-2 ring-purple-400' : 'bg-white/10 border-white/30 hover:border-white/50'}`}
+                disabled={spinning}
+              >
+                <div className="text-white font-bold">Number</div>
+                <div className="text-purple-400 text-sm">36x</div>
               </button>
             </div>
-          )}
+          </div>
 
-          {betType === 'range' && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {RANGES.map(r => (
+          {/* Bet Value Selection */}
+          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
+            <label className="block text-white font-semibold mb-4">Select Your Bet:</label>
+            
+            {betType === 'color' && (
+              <div className="grid grid-cols-2 gap-4">
                 <button
-                  key={r}
                   type="button"
-                  onClick={() => setBetValue(r)}
-                  className={`px-4 py-3 rounded-xl border-2 ${betValue === r ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-300'}`}
+                  onClick={() => setBetValue('red')}
+                  className={`px-6 py-8 rounded-lg border-2 transition-all ${betValue === 'red' ? 'bg-red-500 border-red-400 ring-2 ring-red-400' : 'bg-red-500/30 border-red-400'}`}
                   disabled={spinning}
                 >
-                  {r}
+                  <div className="text-white font-bold text-2xl">RED</div>
                 </button>
-              ))}
-            </div>
-          )}
+                <button
+                  type="button"
+                  onClick={() => setBetValue('black')}
+                  className={`px-6 py-8 rounded-lg border-2 transition-all ${betValue === 'black' ? 'bg-gray-900 border-white ring-2 ring-white' : 'bg-gray-900/80 border-gray-600'}`}
+                  disabled={spinning}
+                >
+                  <div className="text-white font-bold text-2xl">BLACK</div>
+                </button>
+              </div>
+            )}
 
-          {betType === 'number' && (
-            <div>
-              <input
-                type="number"
-                min="0"
-                max="36"
-                value={betValue}
-                onChange={(e) => setBetValue(e.target.value)}
-                className="w-full border rounded-xl px-4 py-2 bg-white dark:bg-gray-800"
-                placeholder="Enter number (0-36)"
-                disabled={spinning}
-              />
-              <div className="grid grid-cols-6 gap-1 mt-2">
-                {[...Array(37)].map((_, i) => (
+            {betType === 'range' && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {RANGES.map(r => (
                   <button
-                    key={i}
+                    key={r}
                     type="button"
-                    onClick={() => setBetValue(String(i))}
-                    className={`p-2 rounded border text-sm ${
-                      betValue === String(i) 
-                        ? 'border-purple-500 bg-purple-500 text-white' 
-                        : getColor(i) === 'red' 
-                          ? 'bg-red-100 dark:bg-red-900/20 border-red-300' 
-                          : getColor(i) === 'black'
-                            ? 'bg-gray-100 dark:bg-gray-800 border-gray-400'
-                            : 'bg-green-100 dark:bg-green-900/20 border-green-300'
-                    }`}
+                    onClick={() => setBetValue(r)}
+                    className={`px-4 py-4 rounded-lg border-2 transition-all ${betValue === r ? 'bg-blue-500 border-blue-400 ring-2 ring-blue-400 text-white' : 'bg-white/10 border-white/30 text-white'}`}
                     disabled={spinning}
                   >
-                    {i}
+                    <div className="font-bold">{r}</div>
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            )}
 
-          {betType === 'zero' && (
-            <div className="text-center p-4 rounded-xl bg-green-100 dark:bg-green-900/20 border-2 border-green-500">
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400">0 (GREEN)</div>
-              <div className="text-sm opacity-70 mt-1">16x multiplier</div>
-            </div>
-          )}
-        </div>
+            {betType === 'number' && (
+              <div>
+                <input
+                  type="number"
+                  min="0"
+                  max="36"
+                  value={betValue}
+                  onChange={(e) => setBetValue(e.target.value)}
+                  className="w-full px-4 py-3 rounded bg-white/20 text-white text-lg font-bold border-2 border-white/30 mb-3"
+                  placeholder="Enter number (0-36)"
+                  disabled={spinning}
+                />
+                <div className="grid grid-cols-6 gap-1">
+                  {[...Array(37)].map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setBetValue(String(i))}
+                      className={`p-2 rounded border-2 text-sm font-bold ${
+                        betValue === String(i) 
+                          ? 'border-purple-400 bg-purple-500 text-white ring-2 ring-purple-400' 
+                          : getColor(i) === 'red' 
+                            ? 'bg-red-500/50 border-red-400 text-white' 
+                            : getColor(i) === 'black'
+                              ? 'bg-gray-900/80 border-gray-600 text-white'
+                              : 'bg-green-500/50 border-green-400 text-white'
+                      }`}
+                      disabled={spinning}
+                    >
+                      {i}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Spin Button */}
+            {betType === 'zero' && (
+              <div className="text-center p-8 rounded-lg bg-green-500/30 border-2 border-green-400">
+                <div className="text-6xl font-bold text-green-400 mb-2">0</div>
+                <div className="text-white text-lg">GREEN</div>
+                <div className="text-green-400 text-xl font-bold mt-2">16x multiplier</div>
+              </div>
+            )}
+          </div>
+
+          {/* Spin Button */}
         <button
           type="submit"
           className="w-full px-6 py-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-gray-900 rounded-xl font-bold text-lg hover:from-yellow-500 hover:to-yellow-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
@@ -309,6 +333,7 @@ function RoulettePage() {
           {spinning ? 'Spinning...' : 'SPIN'}
         </button>
       </form>
+      </div>
     </div>
   )
 }

@@ -17,6 +17,7 @@ const MAP = {
   RATE_LIMIT_AUTH: 'Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau 15 phút',
   RATE_LIMIT_TRANSFER: 'Quá nhiều giao dịch chuyển tiền. Vui lòng đợi 5 phút',
   RATE_LIMIT_PVP: 'Quá nhiều thao tác PvP. Vui lòng đợi 1 phút',
+  RATE_LIMIT_GAME: 'Bạn chơi quá nhanh! Vui lòng nghỉ giải lao 1 phút',
   
   // ========== VALIDATION ERRORS (NEW) ==========
   INVALID_INPUT: 'Dữ liệu không hợp lệ',

@@ -2,8 +2,10 @@
 'use client'
 
 import { useTheme } from 'next-themes'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
 import { GAMES } from '@/data/games'
+import { useLocale } from '../context/LocaleContext'
 
 /**
  * Props:
@@ -12,6 +14,7 @@ import { GAMES } from '@/data/games'
  */
 export default function GameCard({ mode, fluid = false }) {
   const { theme } = useTheme()
+  const { t } = useLocale()
   const [mounted, setMounted] = useState(false)
   const [imgLoaded, setImgLoaded] = useState(false)
   const [imgError, setImgError] = useState(false)
@@ -19,88 +22,82 @@ export default function GameCard({ mode, fluid = false }) {
   useEffect(() => setMounted(true), [])
 
   const game = useMemo(() => GAMES.find(g => g.id === mode), [mode])
-  const title = game?.name ?? mode
   const isComingSoon = game?.status === 'coming_soon'
+  const nameKey = `games.entries.${mode}.name`
+  const descriptionKey = `games.entries.${mode}.description`
+
+  const localizedName = useMemo(() => {
+    const value = t(nameKey)
+    return typeof value === 'string' && value !== nameKey ? value : game?.name ?? mode
+  }, [game?.name, mode, nameKey, t])
+
+  const localizedDescription = useMemo(() => {
+    const value = t(descriptionKey)
+    return typeof value === 'string' && value !== descriptionKey ? value : game?.description ?? ''
+  }, [game?.description, descriptionKey, t])
 
   // Skeleton during SSR/CSR mismatch
   if (!mounted) {
     return (
       <div
-        className={`${fluid ? 'w-full' : 'w-56'} rounded-2xl border-2 bg-white dark:bg-gray-900 animate-pulse`}
-        style={{ height: 256 }}
+        className={`${fluid ? 'w-full' : 'w-56'} h-64 animate-pulse rounded-3xl border border-neutral-200 bg-neutral-100/60 dark:border-neutral-800 dark:bg-neutral-900/60`}
         aria-label="Loading game card"
       />
     )
   }
 
   const isDark = theme === 'dark'
-  const borderClr = isDark ? 'border-gray-700' : 'border-gray-900'
-  const textClr = isDark ? 'text-white' : 'text-black'
-  const sectionBorder = isDark ? 'border-gray-700' : 'border-gray-300'
-  const cardBg = isDark ? 'bg-gray-900' : 'bg-white'
+  const gradientOverlay = isDark
+    ? 'from-violet-500/30 via-transparent to-indigo-500/20'
+    : 'from-violet-500/40 via-transparent to-indigo-500/30'
   const src = `/cards/${mode}.png`
-
-  const cardW = fluid ? 'w-full' : 'w-56'
-  const imageH = 'h-40'
-  const labelH = 'h-10 md:h-16'
-  const labelText = 'line-clamp-1 leading-none'
+  const cardWidth = fluid ? 'w-full' : 'w-56'
 
   return (
     <div
-      className={[
-        cardW,
-        'rounded-2xl shadow-md hover:shadow-xl transition-all duration-300',
-        'overflow-hidden border-2',
-        cardBg,
-        borderClr,
-        isComingSoon ? 'opacity-90' : '',
-      ].join(' ')}
-      aria-label={`${title} card`}
+      className={`${cardWidth} group relative overflow-hidden rounded-3xl border border-neutral-200/70 bg-white/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-neutral-800/70 dark:bg-slate-950/70`}
+      aria-label={`${localizedName} card`}
     >
-      <div className={`${imageH} relative`}>
-        {/* Loading overlay */}
+      <div className={`absolute inset-0 pointer-events-none bg-gradient-to-br ${gradientOverlay} opacity-80 group-hover:opacity-100 transition`} />
+
+      <div className="relative h-40 overflow-hidden">
         {!imgLoaded && !imgError && (
-          <div className="absolute inset-0 animate-pulse bg-black/10 dark:bg-white/10" />
+          <div className="absolute inset-0 animate-pulse bg-neutral-200/60 dark:bg-neutral-800/50" />
         )}
 
         {imgError ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-200 dark:bg-gray-800 text-sm">
-            No image
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-200/70 text-neutral-600 dark:bg-neutral-800/70 dark:text-neutral-300">
+            <div className="mb-2 text-4xl">{game?.icon || '🎮'}</div>
+            <span className="text-xs opacity-70">No preview</span>
           </div>
         ) : (
           <img
             src={src}
-            alt={`${title} preview`}
+            alt={`${localizedName} preview`}
             loading="lazy"
             onLoad={() => setImgLoaded(true)}
             onError={() => setImgError(true)}
-            className="w-full h-full object-cover rounded-t-2xl"
+            className="h-full w-full object-cover"
             draggable={false}
           />
         )}
 
-        {/* Coming Soon badge */}
         {isComingSoon && (
-          <div className="absolute top-2 right-2">
-            <span className="rounded-full px-2 py-1 text-[11px] font-semibold bg-yellow-400 text-black shadow">
-              Coming Soon
+          <div className="absolute right-3 top-3">
+            <span className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-black shadow">
+              {t('games.modal.comingSoon')}
             </span>
           </div>
         )}
       </div>
 
-      <div className={`border-t-2 ${sectionBorder}`}>
-        <div
-          className={[
-            labelH,
-            'flex items-center justify-center font-semibold capitalize transition-colors duration-300',
-            textClr,
-            'text-lg px-3 text-center',
-            labelText,
-          ].join(' ')}
-        >
-          {title}
-        </div>
+      <div className="relative flex h-24 flex-col gap-1 border-t border-neutral-200/60 px-4 py-3 dark:border-neutral-800/60">
+        <h3 className="text-lg font-semibold text-neutral-900 transition-colors group-hover:text-neutral-800 dark:text-neutral-50 dark:group-hover:text-white">
+          {localizedName}
+        </h3>
+        {localizedDescription && (
+          <p className="line-clamp-2 text-sm text-neutral-500 dark:text-neutral-400">{localizedDescription}</p>
+        )}
       </div>
     </div>
   )

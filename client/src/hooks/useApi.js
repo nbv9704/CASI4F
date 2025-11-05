@@ -1,6 +1,7 @@
 // client/src/hooks/useApi.js
 'use client'
 
+import { useCallback, useMemo } from 'react'
 import { toast } from 'react-hot-toast'
 import { mapError } from '@/utils/errorMap'
 
@@ -42,7 +43,7 @@ export default function useApi() {
     if (mapped?.message) toast.error(mapped.message)
   }
 
-  async function request(path, { method = 'GET', body } = {}) {
+  const request = useCallback(async (path, { method = 'GET', body } = {}) => {
     let res
     try {
       res = await fetch(baseUrl + path, {
@@ -95,12 +96,15 @@ export default function useApi() {
     }
 
     return data
-  }
+  }, [])
 
-  return {
-    get: (path) => request(path, { method: 'GET' }),
-    post: (path, body) => request(path, { method: 'POST', body }),
-    patch: (path, body) => request(path, { method: 'PATCH', body }),
-    del: (path) => request(path, { method: 'DELETE' }),
-  }
+  return useMemo(
+    () => ({
+      get: (path) => request(path, { method: 'GET' }),
+      post: (path, body) => request(path, { method: 'POST', body }),
+      patch: (path, body) => request(path, { method: 'PATCH', body }),
+      del: (path) => request(path, { method: 'DELETE' }),
+    }),
+    [request]
+  )
 }

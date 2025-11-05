@@ -5,11 +5,13 @@ import RequireAuth from '@/components/RequireAuth'
 import { useState, useEffect } from 'react'
 import useApi from '@/hooks/useApi'
 import { useUser } from '@/context/UserContext'
+import useExperienceSync from '@/hooks/useExperienceSync'
 import { toast } from 'react-hot-toast'
 
 function HigherLowerPage() {
   const { post } = useApi()
-  const { updateBalance } = useUser()
+  const { balance, updateBalance } = useUser()
+  const syncExperience = useExperienceSync()
 
   const [betAmount, setBetAmount] = useState(1)
   const [currentNumber, setCurrentNumber] = useState(10)
@@ -18,6 +20,25 @@ function HigherLowerPage() {
   const [history, setHistory] = useState([])
   const [guessing, setGuessing] = useState(false)
   const [showResult, setShowResult] = useState(false)
+
+  // Load initial state from server
+  useEffect(() => {
+    const loadState = async () => {
+      try {
+        const data = await post('/game/higherlower/state')
+        if (data.lastNumber !== undefined) {
+          setCurrentNumber(data.lastNumber)
+        }
+        if (data.streak !== undefined) {
+          setStreak(data.streak)
+        }
+      } catch (err) {
+        // If error, keep default values
+        console.error('Failed to load Higher/Lower state:', err)
+      }
+    }
+    loadState()
+  }, [])
 
   const handleGuess = async (guess) => {
     if (betAmount <= 0) {
@@ -35,7 +56,8 @@ function HigherLowerPage() {
       setTimeout(() => {
         setNextNumber(data.result)
         setShowResult(true)
-        updateBalance(data.balance)
+  updateBalance(data.balance)
+  syncExperience(data)
 
         if (data.tie) {
           toast(`🤝 It's a tie! Both were ${data.initial}`, { icon: 'ℹ️' })
@@ -67,121 +89,129 @@ function HigherLowerPage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Higher or Lower</h1>
-
-      {/* Streak Display */}
-      {streak > 0 && (
-        <div className="mb-4 p-4 rounded-xl border-2 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 text-center">
-          <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-            🔥 {streak} WIN STREAK! 🔥
-          </div>
-          <div className="text-sm opacity-80 mt-1">
-            Current multiplier: {0.5 + streak * 0.5}x
-          </div>
-        </div>
-      )}
-
-      {/* Game Board */}
-      <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl p-8 shadow-2xl mb-6">
-        {/* Current Number */}
-        <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 mb-6 text-center">
-          <div className="text-sm opacity-70 mb-2">Current Number</div>
-          <div className="text-8xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-            {currentNumber}
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 p-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">⬆️⬇️ Higher or Lower</h1>
+          <p className="text-gray-300">Predict the trend — ride the streak!</p>
+          <div className="mt-4 text-xl text-yellow-400">Balance: {balance} coins</div>
         </div>
 
-        {/* Next Number (when revealed) */}
-        {showResult && nextNumber !== null && (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 mb-6 text-center animate-pulse">
-            <div className="text-sm opacity-70 mb-2">Next Number</div>
-            <div className="text-8xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-blue-600">
-              {nextNumber}
+        {/* Streak Display */}
+        {streak > 0 && (
+          <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-lg p-6 mb-6 text-center shadow-2xl">
+            <div className="text-3xl font-bold text-white mb-2">
+              🔥 {streak} WIN STREAK! 🔥
+            </div>
+            <div className="text-white text-lg">
+              Current multiplier: <span className="font-bold">{(0.5 + streak * 0.5).toFixed(1)}x</span>
             </div>
           </div>
         )}
 
-        {/* Bet Amount */}
-        <div className="bg-white/20 backdrop-blur rounded-xl p-4 mb-6">
-          <label className="block mb-2 font-medium text-white text-sm">Bet Amount:</label>
-          <input
-            type="number"
-            min="1"
-            value={betAmount}
-            onChange={(e) => setBetAmount(+e.target.value)}
-            className="w-full border rounded-xl px-4 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            disabled={guessing}
-          />
+        {/* Game Board */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6">
+          {/* Numbers Display */}
+          <div className="grid grid-cols-2 gap-6 mb-6">
+            {/* Current Number */}
+            <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl p-8 shadow-xl">
+              <div className="text-sm text-white/70 mb-2 text-center">CURRENT</div>
+              <div className="text-8xl font-bold text-white text-center">
+                {currentNumber}
+              </div>
+            </div>
+
+            {/* Next Number */}
+            <div className={`bg-gradient-to-br from-green-500 to-blue-500 rounded-xl p-8 shadow-xl ${showResult ? 'animate-pulse' : ''}`}>
+              <div className="text-sm text-white/70 mb-2 text-center">NEXT</div>
+              <div className="text-8xl font-bold text-white text-center">
+                {showResult && nextNumber !== null ? nextNumber : '?'}
+              </div>
+            </div>
+          </div>
+
+          {/* Bet Amount */}
+          <div className="mb-6">
+            <label className="block text-white font-semibold mb-2">Bet Amount:</label>
+            <input
+              type="number"
+              min="1"
+              value={betAmount}
+              onChange={(e) => setBetAmount(+e.target.value)}
+              className="w-full px-4 py-3 rounded bg-white/20 text-white text-lg font-bold border-2 border-white/30"
+              disabled={guessing}
+            />
+          </div>
+
+          {/* Guess Buttons */}
+          <div className="grid grid-cols-2 gap-6">
+            <button
+              onClick={() => handleGuess('lower')}
+              disabled={guessing}
+              className="px-8 py-8 bg-gradient-to-br from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white rounded-xl font-bold text-3xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+            >
+              ⬇️ LOWER
+            </button>
+            <button
+              onClick={() => handleGuess('higher')}
+              disabled={guessing}
+              className="px-8 py-8 bg-gradient-to-br from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white rounded-xl font-bold text-3xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+            >
+              ⬆️ HIGHER
+            </button>
+          </div>
+
+          {guessing && (
+            <div className="mt-6 text-center text-white text-xl font-semibold animate-pulse">
+              🎲 Revealing next number...
+            </div>
+          )}
         </div>
 
-        {/* Guess Buttons */}
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={() => handleGuess('lower')}
-            disabled={guessing}
-            className="px-8 py-6 bg-gradient-to-br from-red-500 to-red-700 text-white rounded-2xl font-bold text-2xl hover:from-red-600 hover:to-red-800 disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-lg"
-          >
-            ⬇️ LOWER
-          </button>
-          <button
-            onClick={() => handleGuess('higher')}
-            disabled={guessing}
-            className="px-8 py-6 bg-gradient-to-br from-green-500 to-green-700 text-white rounded-2xl font-bold text-2xl hover:from-green-600 hover:to-green-800 disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-lg"
-          >
-            ⬆️ HIGHER
-          </button>
-        </div>
-
-        {guessing && (
-          <div className="mt-4 text-center text-white text-lg font-semibold animate-pulse">
-            Revealing...
+        {/* History */}
+        {history.length > 0 && (
+          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6">
+            <h2 className="text-white text-xl font-bold mb-4">📜 Recent History</h2>
+            <div className="space-y-3">
+              {[...history].reverse().map((h, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between p-4 rounded-lg ${
+                    h.outcome === 'win'
+                      ? 'bg-green-500/30 border-2 border-green-400'
+                      : h.outcome === 'lose'
+                      ? 'bg-red-500/30 border-2 border-red-400'
+                      : 'bg-gray-500/30 border-2 border-gray-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-3xl font-bold text-white">{h.from}</span>
+                    <span className="text-2xl">
+                      {h.guess === 'higher' ? '⬆️' : '⬇️'}
+                    </span>
+                    <span className="text-3xl font-bold text-white">{h.to}</span>
+                  </div>
+                  <div className="text-2xl">
+                    {h.outcome === 'win' ? '✅' : h.outcome === 'lose' ? '❌' : '🤝'}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
-      </div>
 
-      {/* History */}
-      {history.length > 0 && (
-        <div className="rounded-2xl border p-4">
-          <h2 className="text-lg font-semibold mb-3">Recent History</h2>
-          <div className="space-y-2">
-            {[...history].reverse().map((h, i) => (
-              <div
-                key={i}
-                className={`flex items-center justify-between p-3 rounded-xl border ${
-                  h.outcome === 'win'
-                    ? 'bg-green-50 dark:bg-green-900/20 border-green-300'
-                    : h.outcome === 'lose'
-                    ? 'bg-red-50 dark:bg-red-900/20 border-red-300'
-                    : 'bg-gray-50 dark:bg-gray-800 border-gray-300'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold">{h.from}</span>
-                  <span className="text-sm opacity-70">
-                    {h.guess === 'higher' ? '⬆️' : '⬇️'}
-                  </span>
-                  <span className="text-2xl font-bold">{h.to}</span>
-                </div>
-                <div className="text-lg font-semibold">
-                  {h.outcome === 'win' ? '✅' : h.outcome === 'lose' ? '❌' : '🤝'}
-                </div>
-              </div>
-            ))}
+        {/* Rules */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
+          <h3 className="text-white font-bold text-lg mb-4">📖 How to Play:</h3>
+          <div className="text-gray-300 space-y-2">
+            <p>• Numbers range from <strong>1 to 20</strong></p>
+            <p>• Guess if the next number will be <strong className="text-green-400">HIGHER</strong> or <strong className="text-red-400">LOWER</strong></p>
+            <p>• Build a win streak for bonus multipliers (<strong className="text-yellow-400">+0.5x per win</strong>)</p>
+            <p>• Ties reset your streak but <strong>refund your bet</strong></p>
+            <p>• Keep streaking for bigger wins! 🔥</p>
           </div>
         </div>
-      )}
-
-      {/* Rules */}
-      <div className="mt-6 rounded-2xl border p-4 text-sm opacity-80">
-        <h3 className="font-semibold mb-2">How to Play:</h3>
-        <ul className="space-y-1 list-disc list-inside">
-          <li>Numbers range from 1 to 20</li>
-          <li>Guess if the next number will be HIGHER or LOWER</li>
-          <li>Build a win streak for bonus multipliers (+0.5x per win)</li>
-          <li>Ties reset your streak but refund your bet</li>
-          <li>Maximum multiplier increases with your streak!</li>
-        </ul>
       </div>
     </div>
   )

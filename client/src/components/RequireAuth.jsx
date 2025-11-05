@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Loading from '@/components/Loading'
 import { useUser } from '@/context/UserContext'
+import { useLocale } from '@/context/LocaleContext'
 
 /**
  * Bảo vệ trang yêu cầu đăng nhập.
@@ -21,6 +22,7 @@ export default function RequireAuth(Component) {
     const router = useRouter()
     const pathname = usePathname()
     const { user, fetchUser } = useUser()
+    const { t } = useLocale()
 
     // Trạng thái kiểm tra đã xong chưa
     const [checked, setChecked] = useState(false)
@@ -68,12 +70,12 @@ export default function RequireAuth(Component) {
 
     // Chưa kiểm tra xong: dùng 1 text duy nhất để tránh mismatch
     if (!checked || hasToken === null) {
-      return <Loading text="Đang xác thực phiên đăng nhập…" />
+      return <Loading text={t('loading.auth')} />
     }
 
     // Đã kiểm tra: không có token hoặc không lấy được user → redirect (effect đã xử lý)
     if (!hasToken || !user) {
-      return <Loading text="Đang xác thực phiên đăng nhập…" />
+      return <Loading text={t('loading.auth')} />
     }
 
     // OK

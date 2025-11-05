@@ -1,8 +1,10 @@
 // client/src/components/GameDetailModal.jsx
 'use client'
 
-import { useEffect } from 'react'
 import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
+
+import { useLocale } from '../context/LocaleContext'
 
 /**
  * Props:
@@ -12,6 +14,24 @@ import Link from 'next/link'
  * - preferredType?: 'solo'|'battle'  // để quyết định Play đi tới đâu nếu support cả hai
  */
 export default function GameDetailModal({ open, onOpenChange, game, preferredType = 'solo' }) {
+  const { t } = useLocale()
+  const [selectedMode, setSelectedMode] = useState(preferredType)
+
+  const nameKey = game ? `games.entries.${game.id}.name` : null
+  const descriptionKey = game ? `games.entries.${game.id}.description` : null
+
+  const localizedName = useMemo(() => {
+    if (!game || !nameKey) return game?.name ?? ''
+    const value = t(nameKey)
+    return typeof value === 'string' && value !== nameKey ? value : game.name
+  }, [game, nameKey, t])
+
+  const localizedDescription = useMemo(() => {
+    if (!game || !descriptionKey) return game?.description ?? ''
+    const value = t(descriptionKey)
+    return typeof value === 'string' && value !== descriptionKey ? value : game.description
+  }, [descriptionKey, game, t])
+
   useEffect(() => {
     if (!open) return
     const onKey = (e) => { if (e.key === 'Escape') onOpenChange?.(false) }
@@ -23,87 +43,147 @@ export default function GameDetailModal({ open, onOpenChange, game, preferredTyp
     }
   }, [open, onOpenChange])
 
+  // Reset selected mode when modal opens
+  useEffect(() => {
+    if (open && game) {
+      // Set to preferred type if supported, otherwise first available mode
+      if (game.supports?.includes(preferredType)) {
+        setSelectedMode(preferredType)
+      } else {
+        setSelectedMode(game.supports?.[0] || 'solo')
+      }
+    }
+  }, [open, game, preferredType])
+
   if (!open || !game) return null
 
-  const playable =
-    game.status === 'live' &&
-    (game.supports?.includes(preferredType) || game.supports?.length > 0)
+  const hasBothModes = game.supports?.includes('solo') && game.supports?.includes('battle')
+  const playable = game.status === 'live' && game.supports?.includes(selectedMode)
 
-  const href = preferredType === 'battle'
+  const href = selectedMode === 'battle'
     ? `/game/battle/${game.id}`
     : `/game/${game.id}`
 
   return (
-    <div className="fixed inset-0 z-[60]">
-      {/* overlay */}
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <button
-        aria-label="Close"
-        className="absolute inset-0 bg-black/50"
+        aria-label={t('games.modal.close')}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={() => onOpenChange?.(false)}
+        type="button"
       />
-      {/* dialog */}
+
       <div
         role="dialog"
         aria-modal="true"
-        className="absolute left-1/2 top-1/2 w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border bg-white dark:bg-gray-900 shadow-2xl"
+        className="relative z-[61] w-full max-w-xl overflow-hidden rounded-3xl border border-neutral-200/70 bg-white/95 shadow-2xl backdrop-blur dark:border-neutral-800/70 dark:bg-slate-950/90"
       >
-        {/* header */}
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-semibold">{game.name}</h2>
-          {game.status === 'coming_soon' && (
-            <span className="text-[12px] px-2 py-1 rounded-full bg-yellow-400 text-black font-semibold">
-              Coming Soon
-            </span>
-          )}
-        </div>
+        <div className="absolute -top-28 right-0 h-48 w-48 rounded-full bg-gradient-to-br from-violet-500/40 to-indigo-500/40 blur-3xl" aria-hidden="true" />
 
-        {/* body */}
-        <div className="p-4 space-y-3">
-          <div className="rounded-xl overflow-hidden border">
+        <div className="relative flex flex-col gap-5 p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-[0.3em] text-violet-500">
+                {t('games.page.headerAccent')}
+              </span>
+              <h2 className="mt-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-50">{localizedName}</h2>
+            </div>
+            {game.status === 'coming_soon' && (
+              <span className="rounded-full bg-amber-400 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-black shadow">
+                {t('games.modal.comingSoon')}
+              </span>
+            )}
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-neutral-200/70 shadow-sm dark:border-neutral-800/70">
             <img
               src={`/cards/${game.id}.png`}
-              alt={`${game.name} cover`}
-              className="w-full h-48 object-cover"
+              alt={`${localizedName} cover`}
+              className="h-48 w-full object-cover"
               draggable={false}
             />
           </div>
 
-          {game.description && (
-            <p className="text-sm opacity-80">{game.description}</p>
+          {localizedDescription && (
+            <p className="text-sm text-neutral-600 dark:text-neutral-300">{localizedDescription}</p>
           )}
 
-          <div className="text-sm">
-            <div><b>Min stake:</b> {game.minBet}</div>
-            <div><b>Supports:</b> {game.supports?.join(', ')}</div>
+          <div className="grid gap-4 rounded-2xl border border-neutral-200/60 bg-neutral-50/80 p-4 dark:border-neutral-800/60 dark:bg-neutral-900/60">
+            <div className="flex items-center justify-between text-sm font-medium text-neutral-700 dark:text-neutral-200">
+              <span>{t('games.modal.minStake')}</span>
+              <span className="text-base font-semibold text-neutral-900 dark:text-neutral-50">{game.minBet}</span>
+            </div>
+
+            {hasBothModes ? (
+              <div className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                  {t('games.modal.selectMode')}
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setSelectedMode('solo')}
+                    className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 dark:focus-visible:ring-violet-500 ${
+                      selectedMode === 'solo'
+                        ? 'border-violet-500 bg-gradient-to-r from-violet-500 to-indigo-500 text-white shadow'
+                        : 'border-neutral-200 bg-white/90 text-neutral-600 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900/90 dark:text-neutral-300 dark:hover:text-white'
+                    }`}
+                    type="button"
+                    aria-pressed={selectedMode === 'solo'}
+                  >
+                    🎮 {t('games.modal.solo')}
+                  </button>
+                  <button
+                    onClick={() => setSelectedMode('battle')}
+                    className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 dark:focus-visible:ring-violet-500 ${
+                      selectedMode === 'battle'
+                        ? 'border-violet-500 bg-gradient-to-r from-violet-500 to-indigo-500 text-white shadow'
+                        : 'border-neutral-200 bg-white/90 text-neutral-600 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900/90 dark:text-neutral-300 dark:hover:text-white'
+                    }`}
+                    type="button"
+                    aria-pressed={selectedMode === 'battle'}
+                  >
+                    ⚔️ {t('games.modal.battle')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-sm text-neutral-600 dark:text-neutral-300">
+                <span>{t('games.modal.mode')}</span>
+                <span className="font-medium">
+                  {game.supports?.map(value => (value === 'battle' ? t('games.modal.battle') : t('games.modal.solo'))).join(', ')}
+                </span>
+              </div>
+            )}
           </div>
-        </div>
 
-        {/* footer */}
-        <div className="p-4 border-t flex items-center justify-end gap-2">
-          <button
-            className="px-4 py-2 rounded-xl border"
-            onClick={() => onOpenChange?.(false)}
-          >
-            Close
-          </button>
-
-          {playable ? (
-            <Link
-              href={href}
-              className="px-4 py-2 rounded-xl border shadow font-semibold"
-              onClick={() => onOpenChange?.(false)}
-            >
-              Play
-            </Link>
-          ) : (
+          <div className="flex items-center justify-end gap-3">
             <button
-              className="px-4 py-2 rounded-xl border shadow font-semibold opacity-60 cursor-not-allowed"
-              disabled
-              title="This mode is not available yet"
+              className="rounded-2xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-600 transition hover:border-neutral-300 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-500 dark:hover:text-white"
+              onClick={() => onOpenChange?.(false)}
+              type="button"
             >
-              Not Available
+              {t('games.modal.close')}
             </button>
-          )}
+
+            {playable ? (
+              <Link
+                href={href}
+                className="rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow transition hover:opacity-95"
+                onClick={() => onOpenChange?.(false)}
+              >
+                {t('games.modal.play')}
+              </Link>
+            ) : (
+              <button
+                className="cursor-not-allowed rounded-2xl border border-neutral-200 px-5 py-2 text-sm font-semibold text-neutral-400 dark:border-neutral-700 dark:text-neutral-500"
+                disabled
+                title={t('games.modal.notAvailable')}
+                type="button"
+              >
+                {t('games.modal.notAvailable')}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -2,11 +2,12 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { Bell } from 'lucide-react';
+import { Bell, Loader2 } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import useSocket from '../hooks/useSocket';
 import { useUser } from '../context/UserContext';
 import { useRouter } from 'next/navigation';
+import { useLocale } from '../context/LocaleContext';
 
 function dedupeById(list) {
   const seen = new Set();
@@ -25,6 +26,7 @@ export default function NotificationBell() {
   const router = useRouter();
   const { user } = useUser();
   const { get, patch, post } = useApi();
+  const { t, locale } = useLocale();
 
   const [notifications, setNotifications] = useState([]);
   const [dropdownOpen, setDropdownOpen]   = useState(false);
@@ -113,6 +115,15 @@ export default function NotificationBell() {
     }
   }, []);
 
+  const markAllAsRead = useCallback(async () => {
+    const unread = notifications.filter((n) => !n?.read);
+    if (unread.length === 0) return;
+    await Promise.all(
+      unread.map((n) => patchRef.current(`/notification/${n._id}/read`).catch(() => null))
+    );
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, [notifications]);
+
   const onItemClick = useCallback(async (n) => {
     if (!n) return;
 
@@ -142,21 +153,32 @@ export default function NotificationBell() {
   );
   const unreadBadge = unreadCount > 99 ? '99+' : unreadCount || null;
   const recent7 = useMemo(() => notifications.slice(0, 7), [notifications]);
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale || 'en-US', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    [locale]
+  );
 
   return (
     <div className="relative" ref={bellRef}>
       <button
         onClick={() => setDropdownOpen(o => !o)}
-        aria-label="Notifications"
+        aria-label={t('notifications.dropdown.ariaButton')}
         aria-expanded={dropdownOpen}
         aria-haspopup="menu"
-        className="group p-2 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors relative"
+        className="group relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white transition hover:border-indigo-400/60 hover:bg-indigo-500/20"
+        type="button"
       >
-        <Bell className="w-6 h-6 group-hover:drop-shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
+        <Bell className="h-5 w-5 text-white/80 group-hover:text-white" />
         {unreadBadge && (
           <span
-            aria-label={`${unreadCount} unread notifications`}
-            className="absolute -top-1 -right-1 bg-red-500 text-xs text-white rounded-full px-1 min-w-[18px] text-center"
+            aria-label={t('notifications.dropdown.ariaBadge', { count: unreadCount })}
+            className="absolute -top-1 -right-1 min-w-[20px] rounded-full bg-gradient-to-r from-pink-500 to-red-500 px-1 text-[11px] font-semibold text-white shadow-lg"
           >
             {unreadBadge}
           </span>
@@ -166,50 +188,92 @@ export default function NotificationBell() {
       {dropdownOpen && (
         <div
           role="menu"
-          aria-label="Notifications menu"
-          className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-lg rounded p-3 z-50"
+          aria-label={t('notifications.dropdown.ariaButton')}
+          className="absolute right-0 mt-3 w-80 rounded-3xl border border-white/10 bg-slate-950/95 p-4 text-white shadow-2xl shadow-indigo-500/20 backdrop-blur z-50"
         >
-          <h3 className="font-bold mb-2">Notifications</h3>
-          <ul className="max-h-64 overflow-y-auto">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-indigo-200">
+              {t('notifications.dropdown.title')}
+            </h3>
+            {unreadBadge && (
+              <span className="rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-white">
+                {t('notifications.list.unreadBadge')}
+              </span>
+            )}
+          </div>
+          <ul className="max-h-64 space-y-2 overflow-y-auto pr-1">
             {recent7.length === 0 ? (
-              <li className="text-gray-500">No notifications</li>
+              <li className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-white/60">
+                {t('notifications.dropdown.empty')}
+              </li>
             ) : (
               recent7.map(n => (
-                <li
-                  key={n._id || n.id}
-                  onClick={() => onItemClick(n)}
-                  className={`py-2 border-b flex flex-col cursor-pointer ${
-                    n.read ? 'text-gray-500' : 'text-gray-900 font-semibold'
-                  }`}
-                  title={n?.metadata?.path || ''}
-                  role="menuitem"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      onItemClick(n);
-                    }
-                  }}
-                >
-                  <span>{n.message}</span>
-                  <span className="text-xs">{new Date(n.createdAt).toLocaleString()}</span>
+                <li key={n._id || n.id}>
+                  <button
+                    type="button"
+                    onClick={() => onItemClick(n)}
+                    className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:border-indigo-400/60 hover:bg-indigo-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${
+                      n.read ? 'border-white/10 bg-white/5 text-white/70' : 'border-indigo-400/40 bg-indigo-500/20 text-white'
+                    }`}
+                    title={n?.metadata?.path || ''}
+                    role="menuitem"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onItemClick(n);
+                      }
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-2">
+                        <p className="text-sm leading-snug">{n.message}</p>
+                        <span className="text-[11px] text-white/60">
+                          {t('notifications.list.timestamp', {
+                            time: n?.createdAt ? dateFormatter.format(new Date(n.createdAt)) : '',
+                          })}
+                        </span>
+                      </div>
+                      {!n.read && (
+                        <span className="rounded-full bg-gradient-to-r from-pink-500 to-purple-500 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
+                          {t('notifications.list.unreadBadge')}
+                        </span>
+                      )}
+                    </div>
+                  </button>
                 </li>
               ))
             )}
           </ul>
           <div className="pt-2 flex items-center justify-between gap-2">
             <button
+              onClick={markAllAsRead}
+              disabled={notifications.length === 0 || unreadCount === 0}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:border-indigo-400/50 hover:text-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+            >
+              {t('notifications.dropdown.markAll')}
+            </button>
+            <button
               onClick={fetchNotifications}
               disabled={isRefreshing}
-              className="text-sm px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:border-indigo-400/50 hover:text-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
             >
-              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              {isRefreshing ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>{t('notifications.dropdown.refreshing')}</span>
+                </>
+              ) : (
+                <span>{t('notifications.dropdown.refresh')}</span>
+              )}
             </button>
             <button
               onClick={() => { setDropdownOpen(false); router.push('/notifications'); }}
-              className="text-sm px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:border-indigo-400/50 hover:text-indigo-100"
+              type="button"
             >
-              View All
+              {t('notifications.dropdown.viewAll')}
             </button>
           </div>
         </div>

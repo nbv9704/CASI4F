@@ -5,14 +5,14 @@ import ClientProviders from './providers'
 import { Toaster } from 'react-hot-toast'
 
 export const metadata = {
-  title: '4funBET - Nhà cái đến từ nụ cười',
-  description: 'Fun card games with friends',
+  title: 'Casi4F | Online Casino for Fun',
+  description: 'Fun casino with friends',
 }
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="bg-white dark:bg-gray-900 text-gray-100 transition-colors duration-300">
+      <body className="bg-[#141225] text-gray-100 transition-colors duration-300">
         <ClientProviders>
           <Layout>{children}</Layout>
           <Toaster

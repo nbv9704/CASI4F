@@ -3,6 +3,7 @@
 
 import RequireAuth from "@/components/RequireAuth";
 import { useState, useEffect, useMemo } from "react";
+import Image from "next/image";
 import useApi from "../../hooks/useApi";
 import { useUser } from "../../context/UserContext";
 import Loading from "../../components/Loading";
@@ -124,10 +125,13 @@ function SettingsPage() {
         <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-6 md:flex-row md:items-center">
             <div className="relative h-24 w-24 overflow-hidden rounded-2xl border border-white/20 bg-white/10 backdrop-blur">
-              <img
+              <Image
                 src={avatar || user.avatar || "/default-avatar.png"}
                 alt="Avatar"
-                className="h-full w-full object-cover"
+                fill
+                sizes="96px"
+                className="object-cover"
+                priority
               />
               <span className="absolute inset-0 rounded-2xl border border-white/10" />
             </div>

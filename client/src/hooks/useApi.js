@@ -12,16 +12,16 @@ export default function useApi() {
   const getToken = () =>
     typeof window !== 'undefined' ? localStorage.getItem('token') : null
 
-  const defaultHeaders = () => {
+  const defaultHeaders = useCallback(() => {
     const token = getToken()
     return {
       'Content-Type': 'application/json',
       'x-client-now': String(Date.now()),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     }
-  }
+  }, [])
 
-  function safeRedirectToLoginOnce() {
+  const safeRedirectToLoginOnce = useCallback(() => {
     if (typeof window === 'undefined') return
     const { pathname, search } = window.location
     const isOnLogin = pathname.startsWith('/login')
@@ -36,12 +36,12 @@ export default function useApi() {
     const next = encodeURIComponent(pathname + search)
     // replace để không để user quay lại trang lỗi
     window.location.replace(`/login?next=${next}`)
-  }
+  }, [])
 
-  function notifyError(payloadLike) {
+  const notifyError = useCallback((payloadLike) => {
     const mapped = mapError({ __payload: payloadLike })
     if (mapped?.message) toast.error(mapped.message)
-  }
+  }, [])
 
   const request = useCallback(async (path, { method = 'GET', body } = {}) => {
     let res
@@ -96,7 +96,7 @@ export default function useApi() {
     }
 
     return data
-  }, [])
+  }, [defaultHeaders, notifyError, safeRedirectToLoginOnce])
 
   return useMemo(
     () => ({

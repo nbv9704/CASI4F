@@ -1,7 +1,7 @@
 // client/src/app/admin/pvp/health/page.js
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import useApi from '@/hooks/useApi'
 import Link from 'next/link'
 
@@ -12,7 +12,7 @@ export default function AdminPvpHealthPage() {
   const [error, setError] = useState('')
   const [autoRefresh, setAutoRefresh] = useState(true)
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setLoading(true)
       setError('')
@@ -24,18 +24,20 @@ export default function AdminPvpHealthPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [api])
 
   useEffect(() => {
     load()
-  }, []) // init
+  }, [load]) // init
 
   // Auto refresh mỗi 5s
   useEffect(() => {
     if (!autoRefresh) return
-    const id = setInterval(() => load(), 5000)
+    const id = setInterval(() => {
+      void load()
+    }, 5000)
     return () => clearInterval(id)
-  }, [autoRefresh])
+  }, [autoRefresh, load])
 
   const lastSweepAtText = useMemo(() => {
     const ts = data?.cron?.lastSweepAt

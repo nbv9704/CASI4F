@@ -4,6 +4,7 @@
 import RequireAuth from "@/components/RequireAuth";
 import { useUser } from "../../context/UserContext";
 import Loading from "../../components/Loading";
+import Image from "next/image";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { useLocale } from "../../context/LocaleContext";
@@ -48,10 +49,13 @@ function ProfilePage() {
         <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-6 md:flex-row md:items-center">
             <div className="relative h-28 w-28 overflow-hidden rounded-3xl border border-white/20 bg-white/10 backdrop-blur">
-              <img
+              <Image
                 src={user.avatar || "/default-avatar.png"}
                 alt="Avatar"
-                className="h-full w-full object-cover"
+                fill
+                sizes="112px"
+                className="object-cover"
+                priority
               />
               <span className="absolute inset-0 rounded-3xl border border-white/10" />
             </div>

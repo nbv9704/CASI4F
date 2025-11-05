@@ -179,7 +179,10 @@ function RewardsPage() {
     return weeks;
   }, [calendarMonth]);
 
-  const checkinDate = status.checkin ? new Date(status.checkin) : null;
+  const checkinDate = useMemo(
+    () => (status.checkin ? new Date(status.checkin) : null),
+    [status.checkin],
+  );
   const checkinHistorySet = useMemo(
     () => new Set(checkinHistory),
     [checkinHistory],

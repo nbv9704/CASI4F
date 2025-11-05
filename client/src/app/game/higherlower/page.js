@@ -2,7 +2,7 @@
 'use client'
 
 import RequireAuth from '@/components/RequireAuth'
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import useApi from '@/hooks/useApi'
 import { useUser } from '@/context/UserContext'
 import useExperienceSync from '@/hooks/useExperienceSync'
@@ -22,23 +22,23 @@ function HigherLowerPage() {
   const [showResult, setShowResult] = useState(false)
 
   // Load initial state from server
-  useEffect(() => {
-    const loadState = async () => {
-      try {
-        const data = await post('/game/higherlower/state')
-        if (data.lastNumber !== undefined) {
-          setCurrentNumber(data.lastNumber)
-        }
-        if (data.streak !== undefined) {
-          setStreak(data.streak)
-        }
-      } catch (err) {
-        // If error, keep default values
-        console.error('Failed to load Higher/Lower state:', err)
+  const loadState = useCallback(async () => {
+    try {
+      const data = await post('/game/higherlower/state')
+      if (data.lastNumber !== undefined) {
+        setCurrentNumber(data.lastNumber)
       }
+      if (data.streak !== undefined) {
+        setStreak(data.streak)
+      }
+    } catch (err) {
+      console.error('Failed to load Higher/Lower state:', err)
     }
-    loadState()
-  }, [])
+  }, [post])
+
+  useEffect(() => {
+    void loadState()
+  }, [loadState])
 
   const handleGuess = async (guess) => {
     if (betAmount <= 0) {

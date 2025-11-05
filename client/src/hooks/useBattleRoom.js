@@ -152,29 +152,30 @@ export function useBattleRoom(roomId, gameType) {
   // Utilities
   const myId = me?.id || me?._id; // API /auth/me returns "id", not "_id"
   const myPlayer = room?.players?.find((p) => String(p.userId) === String(myId));
-  
+  const createdBy = room?.createdBy;
+
   // Check isOwner by comparing with createdBy
   const isOwner = useMemo(() => {
-    if (!room?.createdBy || !myId) {
+    if (!createdBy || !myId) {
       console.log('[useBattleRoom] isOwner FALSE - missing data:', {
         hasRoom: !!room,
-        createdBy: room?.createdBy,
+        createdBy,
         hasMe: !!me,
-        myId: myId
+        myId,
       });
       return false;
     }
-    const result = String(room.createdBy) === String(myId);
+    const result = String(createdBy) === String(myId);
     console.log('[useBattleRoom] isOwner calculation:', {
-      createdBy: room.createdBy,
-      createdByType: typeof room.createdBy,
-      myId: myId,
+      createdBy,
+      createdByType: typeof createdBy,
+      myId,
       myIdType: typeof myId,
-      stringComparison: `"${String(room.createdBy)}" === "${String(myId)}"`,
-      result: result
+      stringComparison: `"${String(createdBy)}" === "${String(myId)}"`,
+      result,
     });
     return result;
-  }, [room?.createdBy, myId, me]);
+  }, [createdBy, myId, me, room]);
 
   const getDisplayName = (player) => {
     if (!player) return "";

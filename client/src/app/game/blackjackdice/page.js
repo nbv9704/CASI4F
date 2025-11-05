@@ -1,7 +1,7 @@
 // client/src/app/game/blackjackdice/page.js
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import useApi from '../../../hooks/useApi'
 import { useUser } from '../../../context/UserContext'
 import useExperienceSync from '@/hooks/useExperienceSync'
@@ -22,20 +22,21 @@ function BlackjackDicePage() {
   const { balance, updateBalance } = useUser()
   const syncExperience = useExperienceSync()
   
-  useEffect(() => {
-    const checkGame = async () => {
-      try {
-        const data = await post('/game/blackjackdice/check')
-        if (data.active) {
-          setHasPendingGame(true)
-          setState(data.state)
-        }
-      } catch (err) {
-        console.error(err)
+  const checkGame = useCallback(async () => {
+    try {
+      const data = await post('/game/blackjackdice/check')
+      if (data.active) {
+        setHasPendingGame(true)
+        setState(data.state)
       }
+    } catch (err) {
+      console.error(err)
     }
-    checkGame()
-  }, [])
+  }, [post])
+
+  useEffect(() => {
+    void checkGame()
+  }, [checkGame])
 
   const handleStart = async (e) => {
     e.preventDefault()

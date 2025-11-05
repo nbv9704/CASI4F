@@ -21,6 +21,9 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 
+const MAX_AVATAR_BYTES = 512 * 1024;
+const MAX_AVATAR_DIMENSION = 512;
+
 function SettingsPage() {
   const { user, fetchUser, logout } = useUser();
   const { patch, post } = useApi();
@@ -50,8 +53,102 @@ function SettingsPage() {
     fileInputRef.current?.click();
   }, []);
 
+  const processAvatarFile = useCallback(async (file) => {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const image = await new Promise((resolve, reject) => {
+        const img = new window.Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = objectUrl;
+      });
+
+      const side = Math.min(image.width, image.height);
+      if (!side) {
+        throw new Error("Unable to read image dimensions");
+      }
+
+      const canvasSize = Math.min(MAX_AVATAR_DIMENSION, side);
+      const startX = (image.width - side) / 2;
+      const startY = (image.height - side) / 2;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Canvas rendering is unavailable");
+      }
+
+      ctx.drawImage(image, startX, startY, side, side, 0, 0, canvasSize, canvasSize);
+
+      const exportAsBlob = (type, quality) =>
+        new Promise((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error("Failed to prepare avatar"));
+                return;
+              }
+              resolve(blob);
+            },
+            type,
+            quality,
+          );
+        });
+
+      const tryBlobWithQuality = async (type, qualities) => {
+        for (const quality of qualities) {
+          const blob = await exportAsBlob(type, quality);
+          if (blob.size <= MAX_AVATAR_BYTES || quality === qualities[qualities.length - 1]) {
+            return blob;
+          }
+        }
+        return null;
+      };
+
+      const originalType = file.type.toLowerCase();
+      const qualitySteps = [0.92, 0.82, 0.72, 0.62, 0.52];
+
+      const candidates = [];
+      if (originalType === "image/png") {
+        candidates.push(async () => exportAsBlob("image/png"));
+        candidates.push(async () => tryBlobWithQuality("image/jpeg", qualitySteps));
+      } else if (originalType === "image/webp") {
+        candidates.push(async () => tryBlobWithQuality("image/webp", qualitySteps));
+        candidates.push(async () => tryBlobWithQuality("image/jpeg", qualitySteps));
+      } else {
+        candidates.push(async () => tryBlobWithQuality("image/jpeg", qualitySteps));
+        candidates.push(async () => exportAsBlob("image/png"));
+      }
+
+      for (const getBlob of candidates) {
+        const blob = await getBlob();
+        if (blob && blob.size <= MAX_AVATAR_BYTES) {
+          return await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (typeof reader.result === "string") {
+                resolve(reader.result);
+              } else {
+                reject(new Error("Failed to generate preview"));
+              }
+            };
+            reader.onerror = () => reject(new Error("Failed to read processed image"));
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+
+      throw new Error("Unable to optimise avatar under 512KB");
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }, []);
+
   const handleAvatarFileChange = useCallback(
-    (event) => {
+    async (event) => {
       const file = event.target.files?.[0];
       if (!file) return;
 
@@ -61,33 +158,23 @@ function SettingsPage() {
         return;
       }
 
-      const maxBytes = 1024 * 512;
-      if (file.size > maxBytes) {
-        toast.error(
-          t("settings.toast.avatarTooLarge", { size: "512KB" }) || "Image exceeds 512KB",
+      try {
+        const processed = await processAvatarFile(file);
+        setAvatar(processed);
+        toast.success(
+          t("settings.toast.avatarProcessed") || "Avatar cropped and preview updated",
         );
+      } catch (error) {
+        toast.error(
+          error instanceof Error && error.message
+            ? error.message
+            : t("settings.toast.avatarProcessFailed") || "Could not update avatar",
+        );
+      } finally {
         event.target.value = "";
-        return;
       }
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result;
-        if (typeof result === "string") {
-          setAvatar(result);
-          toast.success(t("settings.toast.avatarPreviewReady") || "Preview updated");
-        } else {
-          toast.error(t("settings.toast.avatarReadFailed") || "Failed to read image");
-        }
-        event.target.value = "";
-      };
-      reader.onerror = () => {
-        toast.error(t("settings.toast.avatarReadFailed") || "Failed to read image");
-        event.target.value = "";
-      };
-      reader.readAsDataURL(file);
     },
-    [t],
+    [processAvatarFile, t],
   );
 
   const inputClassName = useMemo(
@@ -105,7 +192,7 @@ function SettingsPage() {
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     if (!currentPassword) {
-      toast.error(t("settings.toast.currentPasswordMissing"));
+  toast.error(t("settings.toast.currentPasswordMissing") || "Current password required");
       return;
     }
 
@@ -119,10 +206,10 @@ function SettingsPage() {
         currentPassword,
       });
       await fetchUser();
-      toast.success(t("settings.toast.profileUpdated"));
+  toast.success(t("settings.toast.profileUpdated") || "Profile updated successfully");
       setCurrentPassword("");
     } catch (err) {
-      toast.error(err.message);
+  toast.error(err.message || t("common.unexpectedError") || "Something went wrong");
     } finally {
       setSavingProfile(false);
     }
@@ -131,19 +218,19 @@ function SettingsPage() {
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmNewPassword) {
-      toast.error(t("settings.toast.passwordMismatch"));
+  toast.error(t("settings.toast.passwordMismatch") || "Passwords do not match");
       return;
     }
 
     setChangingPassword(true);
     try {
       await post("/user/me/password", { oldPassword, newPassword });
-      toast.success(t("settings.toast.passwordUpdated"));
+  toast.success(t("settings.toast.passwordUpdated") || "Password updated successfully");
       setOldPassword("");
       setNewPassword("");
       setConfirmNewPassword("");
     } catch (err) {
-      toast.error(err.message);
+  toast.error(err.message || t("common.unexpectedError") || "Something went wrong");
     } finally {
       setChangingPassword(false);
     }
@@ -151,14 +238,14 @@ function SettingsPage() {
 
   const handleCopyId = () => {
     if (!user?.id || typeof navigator === "undefined" || !navigator.clipboard) {
-      toast.error(t("common.copyUnsupported"));
+  toast.error(t("common.copyUnsupported") || "Copy is not supported here");
       return;
     }
 
     navigator.clipboard
       .writeText(user.id)
-      .then(() => toast.success(t("common.copySuccess")))
-      .catch(() => toast.error(t("common.copyFailure")));
+  .then(() => toast.success(t("common.copySuccess") || "Copied"))
+  .catch(() => toast.error(t("common.copyFailure") || "Failed to copy"));
   };
 
   if (!user) return <Loading text={t("loading.settings")} />;
@@ -253,21 +340,19 @@ function SettingsPage() {
                 <ImageIcon className="h-4 w-4 text-blue-300" />
                 {t("settings.profileCard.avatar")}
               </label>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <input
-                  type="text"
-                  value={avatar}
-                  onChange={(e) => setAvatar(e.target.value)}
-                  className={inputClassName}
-                  placeholder="https://"
-                />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <button
                   type="button"
                   onClick={triggerAvatarPicker}
-                  className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/60 hover:bg-white/20"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-blue-400/60 hover:bg-white/20"
                 >
-                  {t("settings.profileCard.avatarUpload")}
+                  <ImageIcon className="h-4 w-4" />
+                  <span>{t("settings.profileCard.avatarUpload") || "Add image"}</span>
                 </button>
+                <p className="text-xs text-white/50">
+                  {t("settings.profileCard.avatarHint") ||
+                    "PNG, JPG or WEBP recommended. We crop to a square and optimise up to 512KB."}
+                </p>
               </div>
               <input
                 ref={fileInputRef}

@@ -69,7 +69,6 @@ export default function DicePokerRoomPage({ params }) {
     handleConfirmDelete,
     fetchUser,
     nameById,
-    avatarById,
     getDisplayName,
     getAvatar,
   } = useBattleRoom(roomId, "dicepoker");
@@ -114,87 +113,110 @@ export default function DicePokerRoomPage({ params }) {
 
   const players = room.players || [];
   const maxPlayers = room.maxPlayers || 4;
-  const metadata = room.metadata?.dicePoker || {};
+  const hasSidebar = room.status === "waiting";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-pink-900 to-red-900 text-white p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Room Header */}
+    <div className="relative min-h-screen overflow-hidden bg-[#0d0b14] text-slate-100">
+      <div
+        className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute bottom-[-80px] right-[-120px] h-80 w-80 rounded-full bg-pink-500/25 blur-3xl"
+        aria-hidden="true"
+      />
+
+      <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pb-20 pt-12 lg:px-8">
         <RoomHeader
           room={room}
-          isOwner={isOwner}
-          onInvite={doInvite}
-          onLeave={doLeave}
-          onDelete={doDelete}
-          inviting={inviting}
-          leaving={leaving}
+          onVerifyClick={() => setVerifyOpen(true)}
         />
 
-        {/* Players Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {Array.from({ length: maxPlayers }).map((_, i) => {
-            const p = players[i];
-            return (
-              <PlayerSlot
-                key={i}
-                slotIndex={i}
-                player={p}
-                avatar={getAvatar(p)}
-                displayName={getDisplayName(p)}
-                gameType="dicepoker"
-                roomStatus={room.status}
-                myId={myId}
-              />
-            );
-          })}
-        </div>
+        <section className="rounded-3xl border border-white/10 bg-white/5 shadow-lg shadow-black/30 backdrop-blur">
+          <div className="px-6 py-8">
+            <header className="mb-4 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.35em] text-white/50">
+              <span>Participants</span>
+              <span>{players.length}/{maxPlayers}</span>
+            </header>
+            <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+              {Array.from({ length: maxPlayers }).map((_, index) => {
+                const player = players[index];
+                return (
+                  <div key={index} className="flex justify-center">
+                    <PlayerSlot
+                      slotIndex={index}
+                      player={player}
+                      avatar={getAvatar(player)}
+                      displayName={getDisplayName(player)}
+                      gameType="dicepoker"
+                      roomStatus={room.status}
+                      myId={myId}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
 
-        {/* Game Content */}
-        {room.status === "waiting" && (
-          <WaitingControls
-            room={room}
-            myPlayer={myPlayer}
-            isOwner={isOwner}
-            onReady={doReady}
-            readying={readying}
-            onInvite={doInvite}
-            onLeave={doLeave}
-            onDelete={doDelete}
-            inviting={inviting}
-            leaving={leaving}
-            deleting={deleting}
-          />
-        )}
+        <section className={`grid gap-6 ${hasSidebar ? "lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,1fr)]" : ""}`}>
+          <div className="space-y-6">
+            {room.status === "waiting" && (
+              <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-6 text-sm text-white/70">
+                Waiting for challengers to join and ready up. Once the battle starts, the dice poker board will appear here.
+              </div>
+            )}
 
-        {(room.status === "active" || room.status === "finished") && (
-          <div className="mt-8">
-            <DicePokerDisplay
-              room={room}
-              myId={myId}
-              nameById={nameById}
-              avatarById={avatarById}
-            />
-            
-            {room.status === "finished" && (
-              <div className="mt-8 text-center">
-                <button
-                  onClick={() => setVerifyOpen(true)}
-                  className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-semibold transition"
-                >
-                  ⚙️ Verify Fairness
-                </button>
+            {(room.status === "active" || room.status === "finished") && (
+              <div className="space-y-6">
+                <DicePokerDisplay
+                  room={room}
+                  metadata={room.metadata}
+                  nameById={nameById}
+                />
+
+                {room.status === "finished" && (
+                  <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-5 text-sm text-white/70">
+                    <p className="mb-2 text-base font-semibold text-white">Round complete</p>
+                    <p className="mb-2">
+                      Want to confirm the roll order? Hit the fairness control in the header to view the final seed reveal, client commits, and the nonce that produced every pip combination.
+                    </p>
+                    <p>
+                      The same verification data is stored with the battle history entry so you can revisit it whenever you need proof.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
+
+          {hasSidebar && (
+            <aside className="space-y-6">
+              <WaitingControls
+                room={room}
+                myPlayer={myPlayer}
+                isOwner={isOwner}
+                onReady={doReady}
+                readying={readying}
+                onInvite={doInvite}
+                onLeave={doLeave}
+                onDelete={doDelete}
+                inviting={inviting}
+                leaving={leaving}
+                deleting={deleting}
+              />
+            </aside>
+          )}
+        </section>
       </div>
 
-      {/* Modals */}
       <VerifyFairnessModal
-        isOpen={verifyOpen}
+        open={verifyOpen}
         onClose={() => setVerifyOpen(false)}
+        onOpenChange={setVerifyOpen}
         gameType="dicepoker"
         gameData={room}
+        roomId={room?.roomId}
       />
 
       <PromptDialog

@@ -6,7 +6,18 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useUser } from '../context/UserContext'
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Menu, X, Gamepad2, Gift, Medal, LogOut } from 'lucide-react'
+import {
+  Menu,
+  X,
+  Gamepad2,
+  Gift,
+  Medal,
+  LogOut,
+  UserCircle2,
+  History,
+  Settings2,
+  ShieldCheck,
+} from 'lucide-react'
 import { useLocale } from '../context/LocaleContext'
 import NotificationBell from './NotificationBell'
 import WalletBadgeIcon from './icons/WalletBadgeIcon'
@@ -87,6 +98,12 @@ export default function Navbar() {
     { href: '/game', label: t('navbar.links.game'), icon: Gamepad2 },
     { href: '/rewards', label: t('navbar.links.rewards'), icon: Gift },
     { href: '/rankings', label: t('navbar.links.rankings'), icon: Medal },
+  ]
+
+  const menuLinks = [
+    { href: '/profile', label: t('navbar.links.profile'), icon: UserCircle2 },
+    { href: '/history', label: t('navbar.links.history'), icon: History },
+    { href: '/settings', label: t('navbar.links.settings'), icon: Settings2 },
   ]
 
   return (
@@ -235,7 +252,7 @@ export default function Navbar() {
             hamburgerOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
           }`}
         >
-          <div className='flex-shrink-0 border-b border-slate-800/60 p-5'>
+          <div className='flex-shrink-0 border-b border-slate-700/70 p-5'>
             <div className='mb-3 flex items-center justify-between'>
               <div className='flex items-center gap-2.5'>
                 <div className='relative'>
@@ -284,7 +301,7 @@ export default function Navbar() {
           </div>
 
           <div className='flex-1 overflow-y-auto'>
-            <div className='space-y-1 p-3'>
+            <div className='space-y-1 px-3 pt-2 pb-3'>
               <div className='mb-2 space-y-1 md:hidden'>
                 <Link
                   href='/game'
@@ -310,58 +327,41 @@ export default function Navbar() {
                   <Medal className='h-4 w-4 text-indigo-300' aria-hidden='true' />
                   <span className='text-sm font-medium'>{t('navbar.links.rankings')}</span>
                 </Link>
-                <div className='my-2 h-px bg-slate-800/60' />
+                <div className='my-2 h-px bg-slate-700/70' />
               </div>
 
-              <div className='px-3.5 py-1.5 text-xs uppercase tracking-wide text-slate-500'>
-                {t('navbar.menu.navigationHeading')}
-              </div>
+              {menuLinks.map(({ href, label, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className='group flex items-center gap-3 rounded-2xl px-3.5 py-3 text-xs font-semibold uppercase tracking-[0.26em] text-slate-300 transition duration-300 hover:bg-white/10 hover:text-white'
+                  onClick={closeHamburger}
+                >
+                  <span className='flex h-9 w-9 items-center justify-center rounded-2xl bg-[#0c1432]/80 text-slate-200 shadow-[0_10px_24px_rgba(8,12,35,0.45)] transition duration-300 group-hover:bg-[#152450]'>
+                    <Icon className='h-4 w-4 text-slate-300 transition-colors duration-300 group-hover:text-white' aria-hidden='true' />
+                  </span>
+                  <span className='text-xs font-semibold uppercase tracking-[0.26em]'>{label}</span>
+                </Link>
+              ))}
 
-              <Link
-                href='/profile'
-                className='group flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-indigo-500/10 hover:text-white'
-                onClick={closeHamburger}
-              >
-                <img src='/symbols/profile.png' alt='' className='h-4 w-4 opacity-70 transition group-hover:opacity-100' />
-                <span className='text-sm font-medium'>{t('navbar.links.profile')}</span>
-              </Link>
-
-              <Link
-                href='/history'
-                className='group flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white'
-                onClick={closeHamburger}
-              >
-                <img src='/symbols/history.png' alt='' className='h-4 w-4 opacity-70 transition group-hover:opacity-100' />
-                <span className='text-sm font-medium'>{t('navbar.links.history')}</span>
-              </Link>
-
-              <Link
-                href='/settings'
-                className='group flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white'
-                onClick={closeHamburger}
-              >
-                <img src='/symbols/settings.png' alt='' className='h-4 w-4 opacity-70 transition group-hover:opacity-100' />
-                <span className='text-sm font-medium'>{t('navbar.links.settings')}</span>
-              </Link>
-
-              <div className='my-2 h-px bg-slate-800/60' />
+              <div className='my-3 h-px bg-slate-700/70' />
 
               {isAdmin && (
                 <Link
                   href='/admin/pvp/health'
-                  className='group flex items-center gap-2.5 rounded-2xl border border-purple-500/30 px-3.5 py-2.5 text-sm font-medium text-purple-200 transition hover:bg-purple-500/15'
+                  className='group flex items-center gap-3 rounded-2xl px-3.5 py-3 text-xs font-semibold uppercase tracking-[0.26em] text-purple-100 transition duration-300 hover:bg-purple-500/25'
                   onClick={closeHamburger}
                 >
-                  <span className='inline-flex h-4 w-4 items-center justify-center rounded bg-purple-600/30 text-[10px] font-bold text-purple-400'>
-                    A
+                  <span className='flex h-9 w-9 items-center justify-center rounded-2xl bg-purple-600/30 text-purple-100 shadow-[0_10px_24px_rgba(99,102,241,0.3)] transition duration-300 group-hover:bg-purple-500'>
+                    <ShieldCheck className='h-4 w-4 text-purple-200 transition-colors duration-300 group-hover:text-white' aria-hidden='true' />
                   </span>
-                  <span className='text-sm font-medium'>{t('navbar.menu.adminHealth')}</span>
+                  <span className='text-xs font-semibold uppercase tracking-[0.26em]'>{t('navbar.menu.adminHealth')}</span>
                 </Link>
               )}
             </div>
           </div>
 
-          <div className='flex-shrink-0 border-t border-slate-800/60 bg-slate-950/95 p-3.5'>
+          <div className='flex-shrink-0 border-t border-slate-700/70 bg-slate-950/95 p-3.5'>
             <button
               onClick={() => {
                 logout()

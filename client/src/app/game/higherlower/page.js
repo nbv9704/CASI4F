@@ -1,220 +1,305 @@
 // client/src/app/game/higherlower/page.js
-'use client'
+"use client";
 
-import RequireAuth from '@/components/RequireAuth'
-import { useCallback, useEffect, useState } from 'react'
-import useApi from '@/hooks/useApi'
-import { useUser } from '@/context/UserContext'
-import useExperienceSync from '@/hooks/useExperienceSync'
-import { toast } from 'react-hot-toast'
+import RequireAuth from "@/components/RequireAuth";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import useApi from "@/hooks/useApi";
+import { useUser } from "@/context/UserContext";
+import useExperienceSync from "@/hooks/useExperienceSync";
+import { toast } from "react-hot-toast";
+import SoloGameLayout from "@/components/solo/SoloGameLayout";
+import SoloCard from "@/components/solo/SoloCard";
+import { formatCoins } from "@/utils/format";
 
 function HigherLowerPage() {
-  const { post } = useApi()
-  const { balance, updateBalance } = useUser()
-  const syncExperience = useExperienceSync()
+  const { post } = useApi();
+  const { balance, updateBalance } = useUser();
+  const syncExperience = useExperienceSync();
 
-  const [betAmount, setBetAmount] = useState(1)
-  const [currentNumber, setCurrentNumber] = useState(10)
-  const [nextNumber, setNextNumber] = useState(null)
-  const [streak, setStreak] = useState(0)
-  const [history, setHistory] = useState([])
-  const [guessing, setGuessing] = useState(false)
-  const [showResult, setShowResult] = useState(false)
+  const [betAmount, setBetAmount] = useState(1);
+  const [currentNumber, setCurrentNumber] = useState(10);
+  const [nextNumber, setNextNumber] = useState(null);
+  const [streak, setStreak] = useState(0);
+  const [history, setHistory] = useState([]);
+  const [guessing, setGuessing] = useState(false);
+  const [showResult, setShowResult] = useState(false);
 
   // Load initial state from server
   const loadState = useCallback(async () => {
     try {
-      const data = await post('/game/higherlower/state')
+      const data = await post("/game/higherlower/state");
       if (data.lastNumber !== undefined) {
-        setCurrentNumber(data.lastNumber)
+        setCurrentNumber(data.lastNumber);
       }
       if (data.streak !== undefined) {
-        setStreak(data.streak)
+        setStreak(data.streak);
       }
     } catch (err) {
-      console.error('Failed to load Higher/Lower state:', err)
+      console.error("Failed to load Higher/Lower state:", err);
     }
-  }, [post])
+  }, [post]);
 
   useEffect(() => {
-    void loadState()
-  }, [loadState])
+    void loadState();
+  }, [loadState]);
 
   const handleGuess = async (guess) => {
     if (betAmount <= 0) {
-      toast.error('Bet must be > 0')
-      return
+      toast.error("Bet must be > 0");
+      return;
     }
 
-    setGuessing(true)
-    setShowResult(false)
+    setGuessing(true);
+    setShowResult(false);
 
     try {
-      const data = await post('/game/higherlower', { betAmount, guess })
+      const data = await post("/game/higherlower", { betAmount, guess });
 
       // Animate number reveal
       setTimeout(() => {
-        setNextNumber(data.result)
-        setShowResult(true)
-  updateBalance(data.balance)
-  syncExperience(data)
+        setNextNumber(data.result);
+        setShowResult(true);
+        updateBalance(data.balance);
+        syncExperience(data);
 
         if (data.tie) {
-          toast(`🤝 It's a tie! Both were ${data.initial}`, { icon: 'ℹ️' })
-          setStreak(0)
-          setHistory(prev => [...prev, { from: data.initial, to: data.result, guess, outcome: 'tie' }].slice(-10))
+          toast(`🤝 It's a tie! Both were ${data.initial}`, { icon: "ℹ️" });
+          setStreak(0);
+          setHistory((prev) =>
+            [...prev, { from: data.initial, to: data.result, guess, outcome: "tie" }].slice(-10)
+          );
         } else if (data.win) {
-          toast.success(`🎉 Correct! ${data.initial} → ${data.result}`)
-          setStreak(data.streak)
-          setHistory(prev => [...prev, { from: data.initial, to: data.result, guess, outcome: 'win' }].slice(-10))
+          toast.success(`🎉 Correct! ${data.initial} → ${data.result}`);
+          setStreak(data.streak);
+          setHistory((prev) =>
+            [...prev, { from: data.initial, to: data.result, guess, outcome: "win" }].slice(-10)
+          );
         } else {
-          toast.error(`😢 Wrong! ${data.initial} → ${data.result}`)
-          setStreak(0)
-          setHistory(prev => [...prev, { from: data.initial, to: data.result, guess, outcome: 'lose' }].slice(-10))
+          toast.error(`😢 Wrong! ${data.initial} → ${data.result}`);
+          setStreak(0);
+          setHistory((prev) =>
+            [...prev, { from: data.initial, to: data.result, guess, outcome: "lose" }].slice(-10)
+          );
         }
 
         // Prepare for next round
         setTimeout(() => {
-          setCurrentNumber(data.result)
-          setNextNumber(null)
-          setShowResult(false)
-          setGuessing(false)
-        }, 2000)
-      }, 1500)
+          setCurrentNumber(data.result);
+          setNextNumber(null);
+          setShowResult(false);
+          setGuessing(false);
+        }, 2000);
+      }, 1500);
     } catch (err) {
-      setGuessing(false)
-      setShowResult(false)
+      setGuessing(false);
+      setShowResult(false);
       // Error toast handled by useApi
     }
-  }
+  };
+
+  const effectiveMultiplier = useMemo(() => (0.5 + streak * 0.5).toFixed(1), [streak]);
+
+  const headerStats = useMemo(
+    () => [
+      {
+        label: "Wallet balance",
+        value: `${formatCoins(balance)} coins`,
+      },
+      {
+        label: "Live number",
+        value: currentNumber,
+      },
+      {
+        label: "Win streak",
+        value: streak,
+        hint: streak > 0 ? `${effectiveMultiplier}x multiplier` : "Build a streak to boost rewards",
+      },
+      {
+        label: "Recent rounds",
+        value: history.length,
+        hint: "Showing the last 10 outcomes",
+      },
+    ],
+    [balance, currentNumber, streak, effectiveMultiplier, history.length]
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 p-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">⬆️⬇️ Higher or Lower</h1>
-          <p className="text-gray-300">Predict the trend — ride the streak!</p>
-          <div className="mt-4 text-xl text-yellow-400">Balance: {balance} coins</div>
-        </div>
-
-        {/* Streak Display */}
-        {streak > 0 && (
-          <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-lg p-6 mb-6 text-center shadow-2xl">
-            <div className="text-3xl font-bold text-white mb-2">
-              🔥 {streak} WIN STREAK! 🔥
-            </div>
-            <div className="text-white text-lg">
-              Current multiplier: <span className="font-bold">{(0.5 + streak * 0.5).toFixed(1)}x</span>
-            </div>
+    <SoloGameLayout
+      title="⬆️⬇️ Higher or Lower"
+      subtitle="Predict whether the next draw lands higher or lower. String together perfect calls to climb the multiplier ladder."
+      accent="Solo challenge"
+      stats={headerStats}
+    >
+      {streak > 0 ? (
+        <SoloCard className="border-amber-400/30 bg-amber-500/10 text-center text-white shadow-lg shadow-amber-500/20">
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-white/70">Streak hot</p>
+          <div className="mt-3 text-3xl font-semibold">
+            🔥 {streak} win streak
           </div>
-        )}
+          <p className="mt-1 text-sm text-white/70">Current multiplier {effectiveMultiplier}x</p>
+        </SoloCard>
+      ) : null}
 
-        {/* Game Board */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6">
-          {/* Numbers Display */}
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            {/* Current Number */}
-            <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl p-8 shadow-xl">
-              <div className="text-sm text-white/70 mb-2 text-center">CURRENT</div>
-              <div className="text-8xl font-bold text-white text-center">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+        <SoloCard className="space-y-6">
+          <header className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Number reveal</p>
+              <h2 className="text-lg font-semibold text-white">Target the right trend</h2>
+            </div>
+            {guessing ? (
+              <span className="inline-flex items-center gap-2 rounded-full border border-sky-400/40 bg-sky-500/20 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-sky-100">
+                Resolving guess
+              </span>
+            ) : null}
+          </header>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="rounded-3xl border border-indigo-500/30 bg-gradient-to-br from-indigo-600/80 via-purple-600/80 to-blue-500/80 p-6 text-center shadow-inner shadow-indigo-900/60">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">Current</p>
+              <p className="mt-3 text-6xl font-semibold text-white" suppressHydrationWarning>
                 {currentNumber}
-              </div>
+              </p>
             </div>
-
-            {/* Next Number */}
-            <div className={`bg-gradient-to-br from-green-500 to-blue-500 rounded-xl p-8 shadow-xl ${showResult ? 'animate-pulse' : ''}`}>
-              <div className="text-sm text-white/70 mb-2 text-center">NEXT</div>
-              <div className="text-8xl font-bold text-white text-center">
-                {showResult && nextNumber !== null ? nextNumber : '?'}
-              </div>
-            </div>
-          </div>
-
-          {/* Bet Amount */}
-          <div className="mb-6">
-            <label className="block text-white font-semibold mb-2">Bet Amount:</label>
-            <input
-              type="number"
-              min="1"
-              value={betAmount}
-              onChange={(e) => setBetAmount(+e.target.value)}
-              className="w-full px-4 py-3 rounded bg-white/20 text-white text-lg font-bold border-2 border-white/30"
-              disabled={guessing}
-            />
-          </div>
-
-          {/* Guess Buttons */}
-          <div className="grid grid-cols-2 gap-6">
-            <button
-              onClick={() => handleGuess('lower')}
-              disabled={guessing}
-              className="px-8 py-8 bg-gradient-to-br from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white rounded-xl font-bold text-3xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+            <div
+              className={`rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/80 via-teal-500/80 to-cyan-500/80 p-6 text-center shadow-inner shadow-emerald-900/50 ${
+                showResult ? "animate-pulse" : ""
+              }`}
             >
-              ⬇️ LOWER
-            </button>
-            <button
-              onClick={() => handleGuess('higher')}
-              disabled={guessing}
-              className="px-8 py-8 bg-gradient-to-br from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white rounded-xl font-bold text-3xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-            >
-              ⬆️ HIGHER
-            </button>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">Next</p>
+              <p className="mt-3 text-6xl font-semibold text-white" suppressHydrationWarning>
+                {showResult && nextNumber !== null ? nextNumber : "?"}
+              </p>
+            </div>
           </div>
 
-          {guessing && (
-            <div className="mt-6 text-center text-white text-xl font-semibold animate-pulse">
-              🎲 Revealing next number...
-            </div>
-          )}
-        </div>
-
-        {/* History */}
-        {history.length > 0 && (
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6">
-            <h2 className="text-white text-xl font-bold mb-4">📜 Recent History</h2>
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
             <div className="space-y-3">
-              {[...history].reverse().map((h, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center justify-between p-4 rounded-lg ${
-                    h.outcome === 'win'
-                      ? 'bg-green-500/30 border-2 border-green-400'
-                      : h.outcome === 'lose'
-                      ? 'bg-red-500/30 border-2 border-red-400'
-                      : 'bg-gray-500/30 border-2 border-gray-400'
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="text-3xl font-bold text-white">{h.from}</span>
-                    <span className="text-2xl">
-                      {h.guess === 'higher' ? '⬆️' : '⬇️'}
-                    </span>
-                    <span className="text-3xl font-bold text-white">{h.to}</span>
-                  </div>
-                  <div className="text-2xl">
-                    {h.outcome === 'win' ? '✅' : h.outcome === 'lose' ? '❌' : '🤝'}
-                  </div>
-                </div>
-              ))}
+              <label className="text-xs font-semibold uppercase tracking-[0.25em] text-white/50" htmlFor="hl-bet">
+                Bet amount
+              </label>
+              <input
+                id="hl-bet"
+                type="number"
+                min="1"
+                value={betAmount}
+                onChange={(e) => setBetAmount(+e.target.value)}
+                className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-lg font-semibold text-white outline-none transition focus:border-sky-400 focus:bg-black/60 focus:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={guessing}
+              />
+              <p className="text-xs text-white/40">
+                Wins pay out with a base 1.5x multiplier plus streak bonuses.
+              </p>
             </div>
-          </div>
-        )}
 
-        {/* Rules */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
-          <h3 className="text-white font-bold text-lg mb-4">📖 How to Play:</h3>
-          <div className="text-gray-300 space-y-2">
-            <p>• Numbers range from <strong>1 to 20</strong></p>
-            <p>• Guess if the next number will be <strong className="text-green-400">HIGHER</strong> or <strong className="text-red-400">LOWER</strong></p>
-            <p>• Build a win streak for bonus multipliers (<strong className="text-yellow-400">+0.5x per win</strong>)</p>
-            <p>• Ties reset your streak but <strong>refund your bet</strong></p>
-            <p>• Keep streaking for bigger wins! 🔥</p>
+              <div className="grid gap-3">
+                <button
+                  onClick={() => handleGuess("higher")}
+                  disabled={guessing}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500/80 via-teal-500/80 to-cyan-500/80 px-4 py-4 text-lg font-semibold uppercase tracking-[0.25em] text-white shadow-lg shadow-emerald-500/30 transition hover:shadow-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  ⬆️ Higher
+                </button>
+                <button
+                  onClick={() => handleGuess("lower")}
+                  disabled={guessing}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/40 bg-gradient-to-r from-rose-500/80 via-red-500/80 to-orange-500/80 px-4 py-4 text-lg font-semibold uppercase tracking-[0.25em] text-white shadow-lg shadow-rose-500/30 transition hover:shadow-rose-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  ⬇️ Lower
+                </button>
+              </div>
           </div>
+
+          {guessing ? (
+            <p className="text-center text-sm font-semibold text-white/70">🎲 Revealing next number...</p>
+          ) : null}
+        </SoloCard>
+
+        <div className="space-y-6">
+          <SoloCard className="space-y-4">
+            <header className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Round summary</p>
+              <h2 className="text-lg font-semibold text-white">Session snapshot</h2>
+            </header>
+            <div className="space-y-3 text-sm text-white/70">
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <span>Total staking</span>
+                <span className="font-semibold text-white" suppressHydrationWarning>
+                  {formatCoins(betAmount)} coins
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <span>Multiplier</span>
+                <span className="font-semibold text-amber-200" suppressHydrationWarning>
+                  {effectiveMultiplier}x
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <span>Recent trend</span>
+                <span className="font-semibold text-white">
+                  {history.length === 0 ? "—" : history[history.length - 1].outcome}
+                </span>
+              </div>
+            </div>
+          </SoloCard>
+
+          {history.length > 0 ? (
+            <SoloCard className="space-y-4">
+              <header className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Recent history</p>
+                  <h2 className="text-lg font-semibold text-white">Last {history.length} calls</h2>
+                </div>
+              </header>
+              <div className="space-y-3">
+                {[...history]
+                  .slice(-5)
+                  .reverse()
+                  .map((entry, index) => (
+                    <div
+                      key={`${entry.from}-${entry.to}-${index}`}
+                      className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition ${
+                        entry.outcome === "win"
+                          ? "border-emerald-400/40 bg-emerald-500/15"
+                          : entry.outcome === "lose"
+                          ? "border-rose-400/40 bg-rose-500/15"
+                          : "border-white/10 bg-white/5"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 text-white">
+                        <span className="text-lg font-semibold" suppressHydrationWarning>
+                          {entry.from}
+                        </span>
+                        <span>{entry.guess === "higher" ? "⬆️" : "⬇️"}</span>
+                        <span className="text-lg font-semibold" suppressHydrationWarning>
+                          {entry.to}
+                        </span>
+                      </div>
+                      <span className="text-base">
+                        {entry.outcome === "win" ? "✅" : entry.outcome === "lose" ? "❌" : "🤝"}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </SoloCard>
+          ) : null}
         </div>
       </div>
-    </div>
-  )
+
+      <SoloCard className="space-y-3">
+        <header className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">How to play</p>
+          <h2 className="text-lg font-semibold text-white">Core rules</h2>
+        </header>
+        <ul className="space-y-2 text-sm text-white/70">
+          <li>Numbers range from 1 to 20 with equal odds.</li>
+          <li>Correct calls pay out 1.5x with +0.5x added for every consecutive win.</li>
+          <li>Draws return your stake but reset the streak.</li>
+          <li>Maintain focus — one wrong call drops the multiplier to baseline.</li>
+        </ul>
+      </SoloCard>
+    </SoloGameLayout>
+  );
 }
 
-export default RequireAuth(HigherLowerPage)
+export default RequireAuth(HigherLowerPage);

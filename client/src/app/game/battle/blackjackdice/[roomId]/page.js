@@ -155,8 +155,8 @@ export default function BlackjackDiceRoomPage({ params }) {
 
   if (!room) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-[#0d0b14] text-slate-100">
+        <div>Loading...</div>
       </div>
     );
   }
@@ -164,97 +164,126 @@ export default function BlackjackDiceRoomPage({ params }) {
   const players = room.players || [];
   const maxPlayers = room.maxPlayers || 4;
   const metadata = room.metadata?.blackjackDice || {};
-  const phase = metadata.phase || "waiting";
+  const hasSidebar = room.status === "waiting";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-900 via-gray-900 to-black text-white p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Room Header */}
+    <div className="relative min-h-screen overflow-hidden bg-[#0d0b14] text-slate-100">
+      <div
+        className="pointer-events-none absolute -left-28 top-0 h-72 w-72 rounded-full bg-rose-500/20 blur-3xl"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none absolute bottom-[-80px] right-[-120px] h-80 w-80 rounded-full bg-fuchsia-500/25 blur-3xl"
+        aria-hidden="true"
+      />
+
+      <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pb-20 pt-12 lg:px-8">
         <RoomHeader
           room={room}
           onVerifyClick={() => setVerifyOpen(true)}
         />
 
-        {/* Players Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {Array.from({ length: maxPlayers }).map((_, i) => {
-            const p = players[i];
-            return (
-              <PlayerSlot
-                key={i}
-                slotIndex={i}
-                player={p}
-                avatar={p ? avatarById(p.userId) : null}
-                displayName={p ? nameById(p.userId) : null}
-                gameType="blackjackdice"
-                roomStatus={room.status}
-                myId={myId}
-              />
-            );
-          })}
-        </div>
-
-        {/* Game Content */}
-        {room.status === "waiting" && (
-          <WaitingControls
-            room={room}
-            myPlayer={myPlayer}
-            isOwner={isOwner}
-            onReady={doReady}
-            onInvite={doInvite}
-            onLeave={doLeave}
-            onDelete={doDelete}
-            readying={readying}
-            inviting={inviting}
-            leaving={leaving}
-            deleting={deleting}
-          />
-        )}
-
-        {room.status === "active" && (
-          <BlackjackDiceDisplay
-            room={room}
-            myId={myId}
-            nameById={nameById}
-            avatarById={avatarById}
-            onHit={doHit}
-            onStand={doStand}
-            hitting={hitting}
-            standing={standing}
-          />
-        )}
-
-        {room.status === "finished" && (
-          <div className="mt-8">
-            <BlackjackDiceDisplay
-              room={room}
-              myId={myId}
-              nameById={nameById}
-              avatarById={avatarById}
-              onHit={doHit}
-              onStand={doStand}
-              hitting={hitting}
-              standing={standing}
-            />
-            
-            <div className="mt-8 text-center">
-              <button
-                onClick={() => setVerifyOpen(true)}
-                className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-semibold transition"
-              >
-                ⚙️ Verify Fairness
-              </button>
+        <section className="rounded-3xl border border-white/10 bg-white/5 shadow-lg shadow-black/30 backdrop-blur">
+          <div className="px-6 py-8">
+            <header className="mb-4 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.35em] text-white/50">
+              <span>Participants</span>
+              <span>{players.length}/{maxPlayers}</span>
+            </header>
+            <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+              {Array.from({ length: maxPlayers }).map((_, i) => {
+                const p = players[i];
+                return (
+                  <div key={i} className="flex justify-center">
+                    <PlayerSlot
+                      slotIndex={i}
+                      player={p}
+                      avatar={p ? avatarById(p.userId) : null}
+                      displayName={p ? nameById(p.userId) : null}
+                      gameType="blackjackdice"
+                      roomStatus={room.status}
+                      myId={myId}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
-        )}
+        </section>
+
+        <section className={`grid gap-6 ${hasSidebar ? "lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,1fr)]" : ""}`}>
+          <div className={`space-y-6 ${hasSidebar ? "" : "lg:max-w-3xl lg:mx-auto"}`}>
+            {room.status === "waiting" && (
+              <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-6 text-sm text-white/70">
+                Waiting for players to join and ready up. As soon as play begins, the blackjack dice board appears here.
+              </div>
+            )}
+
+            {room.status === "active" && (
+              <BlackjackDiceDisplay
+                room={room}
+                myId={myId}
+                nameById={nameById}
+                avatarById={avatarById}
+                onHit={doHit}
+                onStand={doStand}
+                hitting={hitting}
+                standing={standing}
+              />
+            )}
+
+            {room.status === "finished" && (
+              <div className="space-y-6">
+                <BlackjackDiceDisplay
+                  room={room}
+                  myId={myId}
+                  nameById={nameById}
+                  avatarById={avatarById}
+                  onHit={doHit}
+                  onStand={doStand}
+                  hitting={hitting}
+                  standing={standing}
+                />
+
+                <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-5 text-sm text-white/70">
+                  <p className="mb-2 text-base font-semibold text-white">Round complete</p>
+                  <p className="mb-2">
+                    Curious how the dealer drew? Open the fairness control in the header to review the seed reveal, shuffle order, and every die that was queued before each reveal step.
+                  </p>
+                  <p>
+                    You\'ll find the same proof attached to this battle in history, so auditing future disputes stays quick and transparent.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {hasSidebar && (
+            <aside className="space-y-6">
+              <WaitingControls
+                room={room}
+                myPlayer={myPlayer}
+                isOwner={isOwner}
+                onReady={doReady}
+                onInvite={doInvite}
+                onLeave={doLeave}
+                onDelete={doDelete}
+                readying={readying}
+                inviting={inviting}
+                leaving={leaving}
+                deleting={deleting}
+              />
+            </aside>
+          )}
+        </section>
       </div>
 
-      {/* Modals */}
       <VerifyFairnessModal
-        isOpen={verifyOpen}
+        open={verifyOpen}
         onClose={() => setVerifyOpen(false)}
+        onOpenChange={setVerifyOpen}
         gameType="blackjackdice"
         gameData={room}
+        roomId={room?.roomId}
       />
 
       <PromptDialog

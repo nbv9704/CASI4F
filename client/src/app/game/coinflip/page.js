@@ -1,177 +1,216 @@
 // client/src/app/game/coinflip/page.js
-'use client'
+"use client";
 
-import { useState } from 'react'
-import useApi from '../../../hooks/useApi'
-import { useUser } from '../../../context/UserContext'
-import useExperienceSync from '@/hooks/useExperienceSync'
-import { toast } from 'react-hot-toast'
-import RequireAuth from '@/components/RequireAuth'
+import { useMemo, useState } from "react";
+import { toast } from "react-hot-toast";
+
+import RequireAuth from "@/components/RequireAuth";
+import SoloCard from "@/components/solo/SoloCard";
+import SoloGameLayout from "@/components/solo/SoloGameLayout";
+import { useUser } from "@/context/UserContext";
+import useExperienceSync from "@/hooks/useExperienceSync";
+import useApi from "@/hooks/useApi";
+import { formatCoins } from "@/utils/format";
 
 function CoinflipPage() {
-  const [betAmount, setBetAmount] = useState(10)
-  const [side, setSide] = useState('heads')
-  const [result, setResult] = useState(null)
-  const [isFlipping, setIsFlipping] = useState(false)
+  const [betAmount, setBetAmount] = useState(10);
+  const [side, setSide] = useState("heads");
+  const [result, setResult] = useState(null);
+  const [isFlipping, setIsFlipping] = useState(false);
 
-  const { post } = useApi()
-  const { balance, updateBalance } = useUser()
-  const syncExperience = useExperienceSync()
+  const { post } = useApi();
+  const { balance, updateBalance } = useUser();
+  const syncExperience = useExperienceSync();
 
   const handleFlip = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
     if (betAmount <= 0) {
-      toast.error('Bet must be > 0')
-      return
+      toast.error("Bet must be > 0");
+      return;
     }
-    setIsFlipping(true)
-    setResult(null)
+    setIsFlipping(true);
+    setResult(null);
 
     try {
-      // Không gửi clientSeed — server vẫn chạy fair RNG với seed/nonce của nó
-      const data = await post('/game/coinflip', { betAmount, side })
+      const data = await post("/game/coinflip", { betAmount, side });
 
       setTimeout(() => {
         setResult({
           result: data.result,
           win: data.win,
-          payout: data.payout,   // ✅ tin server
+          payout: data.payout,
           balance: data.balance,
-        })
-        updateBalance(data.balance)
-        syncExperience(data)
-        setIsFlipping(false)
+        });
+        updateBalance(data.balance);
+        syncExperience(data);
+        setIsFlipping(false);
 
         if (data.win) {
-          toast.success(`🎉 You win! The coin showed ${data.result}`)
+          toast.success(`🎉 You win! The coin showed ${data.result}`);
         } else {
-          toast.error(`😢 You lose. The coin showed ${data.result}`)
+          toast.error(`😢 You lose. The coin showed ${data.result}`);
         }
-      }, 1500)
+      }, 1500);
     } catch (err) {
-      toast.error(err.message || 'Flip failed')
-      setIsFlipping(false)
+      toast.error(err.message || "Flip failed");
+      setIsFlipping(false);
     }
-  }
+  };
+
+  const headerStats = useMemo(
+    () => [
+      {
+        label: "Wallet balance",
+        value: `${formatCoins(balance)} coins`,
+      },
+      {
+        label: "Bet amount",
+        value: `${formatCoins(betAmount)} coins`,
+      },
+      {
+        label: "Chosen side",
+        value: side.toUpperCase(),
+      },
+      {
+        label: "Last result",
+        value: result ? result.result.toUpperCase() : "—",
+        hint: result ? (result.win ? "Win" : "Loss") : undefined,
+      },
+    ],
+    [balance, betAmount, side, result]
+  );
+
+  const sideButton = (value, icon) => {
+    const active = side === value;
+    return (
+      <button
+        type="button"
+        onClick={() => setSide(value)}
+        disabled={isFlipping}
+        className={`rounded-2xl border px-6 py-6 text-center transition ${
+          active
+            ? "border-amber-400/40 bg-amber-500/20 shadow-lg shadow-amber-500/20"
+            : "border-white/10 bg-white/5 hover:border-white/30"
+        }`}
+      >
+        <div className="text-5xl" aria-hidden="true">
+          {icon}
+        </div>
+        <div className="mt-3 text-sm font-semibold uppercase tracking-[0.3em] text-white">
+          {value}
+        </div>
+      </button>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-900 via-orange-900 to-red-900 p-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">🪙 Coinflip</h1>
-          <p className="text-gray-300">Double-or-nothing! Pick heads or tails</p>
-          <div className="mt-4 text-xl text-yellow-400">Balance: {balance} coins</div>
-        </div>
+    <SoloGameLayout
+      title="🪙 Coinflip"
+      subtitle="Choose heads or tails, commit your wager, then see where the coin lands."
+      accent="Solo challenge"
+      stats={headerStats}
+    >
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <SoloCard className="flex flex-col items-center gap-6">
+          <header className="w-full text-left">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Coin state</p>
+            <h2 className="text-lg font-semibold text-white">Watch the coin settle on its fate</h2>
+          </header>
 
-        {/* Bet Amount */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6">
-          <label className="block text-white font-semibold mb-2">Bet Amount:</label>
-          <div className="flex items-center gap-4">
-            <input
-              type="number"
-              min="1"
-              value={betAmount}
-              onChange={(e) => setBetAmount(+e.target.value)}
-              className="flex-1 px-4 py-3 rounded bg-white/20 text-white text-lg font-bold border-2 border-white/30"
-              disabled={isFlipping}
-            />
-          </div>
-        </div>
-
-        {/* Side Selection */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6">
-          <label className="block text-white font-semibold mb-4">Choose Your Side:</label>
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => setSide('heads')}
-              disabled={isFlipping}
-              className={`p-6 rounded-lg border-4 transition-all ${
-                side === 'heads'
-                  ? 'bg-yellow-500/30 border-yellow-400 ring-4 ring-yellow-400/50'
-                  : 'bg-white/10 border-white/30 hover:border-white/50'
-              }`}
-            >
-              <div className="text-6xl mb-2">👑</div>
-              <div className="text-white font-bold text-xl">HEADS</div>
-            </button>
-            <button
-              onClick={() => setSide('tails')}
-              disabled={isFlipping}
-              className={`p-6 rounded-lg border-4 transition-all ${
-                side === 'tails'
-                  ? 'bg-yellow-500/30 border-yellow-400 ring-4 ring-yellow-400/50'
-                  : 'bg-white/10 border-white/30 hover:border-white/50'
-              }`}
-            >
-              <div className="text-6xl mb-2">⚡</div>
-              <div className="text-white font-bold text-xl">TAILS</div>
-            </button>
-          </div>
-          
-          <button
-            onClick={handleFlip}
-            disabled={isFlipping}
-            className="w-full mt-6 px-8 py-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg font-bold text-xl"
+          <div
+            className={`flex h-44 w-44 items-center justify-center rounded-full border border-amber-400/40 bg-gradient-to-br from-amber-400 via-amber-500 to-rose-500 text-5xl shadow-lg shadow-amber-500/40 ${
+              isFlipping ? "animate-spin" : ""
+            }`}
+            aria-live="polite"
           >
-            {isFlipping ? 'FLIPPING...' : 'FLIP COIN'}
-          </button>
-        </div>
+            {isFlipping
+              ? "?"
+              : result?.result === "heads"
+              ? "👑"
+              : result?.result === "tails"
+              ? "⚡"
+              : "🪙"}
+          </div>
 
-        {/* Coin Animation */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-8 mb-6">
-          <div className="flex flex-col items-center">
-            <div
-              className={`w-40 h-40 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 border-8 border-yellow-200 shadow-2xl flex items-center justify-center text-4xl font-bold text-white ${
-                isFlipping ? 'animate-spin' : ''
-              }`}
-            >
-              {isFlipping ? '?' : result?.result === 'heads' ? '👑' : result?.result === 'tails' ? '⚡' : '🪙'}
-            </div>
-            <div className="mt-4 text-white text-2xl font-bold">
-              {isFlipping ? 'Flipping...' : result ? result.result.toUpperCase() : 'Ready to flip!'}
-            </div>
-          </div>
-        </div>
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-white/60">
+            {isFlipping ? "Coin flipping..." : result ? result.result.toUpperCase() : "Ready"}
+          </p>
+        </SoloCard>
 
-        {/* Result */}
-        {result && !isFlipping && (
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6">
-            <div className={`text-center p-6 rounded-lg ${result.win ? 'bg-green-500/30' : 'bg-red-500/30'}`}>
-              <p className="text-white text-lg font-semibold mb-2">
-                {result.win ? '🎉 YOU WON!' : '😢 YOU LOST'}
-              </p>
-              <p className="text-white text-4xl font-bold">
-                {result.win ? `+${result.payout}` : `-${betAmount}`} coins
-              </p>
-              <p className="text-gray-200 text-sm mt-2">
-                The coin landed on <strong>{result.result.toUpperCase()}</strong>
-              </p>
-            </div>
-          </div>
-        )}
+        <div className="space-y-6">
+          <SoloCard>
+            <form onSubmit={handleFlip} className="space-y-6">
+              <div className="space-y-3">
+                <label className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50" htmlFor="coinflip-bet">
+                  Bet amount
+                </label>
+                <input
+                  id="coinflip-bet"
+                  type="number"
+                  min="1"
+                  value={betAmount}
+                  onChange={(e) => setBetAmount(+e.target.value)}
+                  className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-lg font-semibold text-white outline-none transition focus:border-amber-400 focus:bg-black/60 focus:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isFlipping}
+                />
+              </div>
 
-        {/* Payout Table */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
-          <h3 className="text-white font-bold text-lg mb-4">How to Play:</h3>
-          <div className="space-y-2 text-gray-300 text-sm">
-            <p>• Choose Heads (👑) or Tails (⚡)</p>
-            <p>• Set your bet amount</p>
-            <p>• Flip the coin!</p>
-            <p>• Win <strong className="text-yellow-400">2x</strong> your bet if you guess correctly</p>
-            <p>• <strong className="text-green-400">Provably Fair</strong> - Every flip is verifiable</p>
-          </div>
-          
-          <div className="mt-4 p-4 bg-yellow-500/20 rounded-lg">
-            <div className="flex justify-between items-center">
-              <span className="text-white font-semibold">Win Multiplier:</span>
-              <span className="text-yellow-400 font-bold text-xl">2x</span>
-            </div>
-          </div>
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Choose your side</p>
+                <div className="grid grid-cols-2 gap-4">
+                  {sideButton("heads", "👑")}
+                  {sideButton("tails", "⚡")}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isFlipping}
+                className="inline-flex w-full items-center justify-center rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-300 via-amber-400 to-rose-400 px-5 py-3 text-sm font-semibold uppercase tracking-[0.3em] text-gray-900 shadow-lg shadow-amber-500/30 transition hover:shadow-amber-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isFlipping ? "Flipping..." : "Flip coin"}
+              </button>
+            </form>
+          </SoloCard>
+
+          {result && !isFlipping ? (
+            <SoloCard className="space-y-4">
+              <header className="space-y-1 text-center">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Outcome</p>
+                <h2 className="text-lg font-semibold text-white">{result.win ? "Victory" : "House win"}</h2>
+              </header>
+              <div className={`rounded-3xl border px-6 py-6 text-center shadow-inner ${
+                result.win ? "border-emerald-400/40 bg-emerald-500/20" : "border-rose-400/40 bg-rose-500/20"
+              }`}>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
+                  Coin landed on
+                </p>
+                <p className="mt-2 text-5xl" aria-live="polite">
+                  {result.result === "heads" ? "👑" : "⚡"}
+                </p>
+                <p className="mt-4 text-2xl font-semibold text-white">
+                  {result.win ? `+${formatCoins(result.payout)}` : `-${formatCoins(betAmount)}`} coins
+                </p>
+              </div>
+            </SoloCard>
+          ) : null}
+
+          <SoloCard className="space-y-4">
+            <header className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">How to play</p>
+              <h2 className="text-lg font-semibold text-white">Fair flips, even odds</h2>
+            </header>
+            <ul className="space-y-2 text-sm text-white/70">
+              <li>Choose heads (👑) or tails (⚡).</li>
+              <li>Set your stake and lock in the flip.</li>
+              <li>Correct call returns <span className="text-amber-200">2x</span> your bet.</li>
+              <li>Every result is provably fair and verifiable.</li>
+            </ul>
+          </SoloCard>
         </div>
       </div>
-    </div>
-  )
+    </SoloGameLayout>
+  );
 }
 
-export default RequireAuth(CoinflipPage)
+export default RequireAuth(CoinflipPage);

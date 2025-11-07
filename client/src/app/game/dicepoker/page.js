@@ -1,186 +1,233 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { toast } from 'react-hot-toast'
-import useApi from '@/hooks/useApi'
-import { useUser } from '@/context/UserContext'
-import useExperienceSync from '@/hooks/useExperienceSync'
-import RequireAuth from '@/components/RequireAuth'
+import { useMemo, useState } from "react";
+import { toast } from "react-hot-toast";
+
+import RequireAuth from "@/components/RequireAuth";
+import SoloCard from "@/components/solo/SoloCard";
+import SoloGameLayout from "@/components/solo/SoloGameLayout";
+import RevealingDiceFaces from "@/components/RevealingDiceFaces";
+import { useUser } from "@/context/UserContext";
+import useExperienceSync from "@/hooks/useExperienceSync";
+import useApi from "@/hooks/useApi";
+import { formatCoins } from "@/utils/format";
 
 const HAND_MULTIPLIERS = {
-  'Five of a Kind': 20,
-  'Four of a Kind': 10,
-  'Full House': 8,
-  'Straight': 5,
-  'Three of a Kind': 3,
-  'Two Pair': 2,
-  'One Pair': 1,
-  'High Card': 0
-}
-
-const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
+  "Five of a Kind": 20,
+  "Four of a Kind": 10,
+  "Full House": 8,
+  Straight: 5,
+  "Three of a Kind": 3,
+  "Two Pair": 2,
+  "One Pair": 1,
+  "High Card": 0,
+};
 
 function DicePokerPage() {
-  const { post } = useApi()
-  const { balance, updateBalance } = useUser()
-  const syncExperience = useExperienceSync()
-  
-  const [betAmount, setBetAmount] = useState(10)
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
-  const [rolling, setRolling] = useState(false)
+  const { post } = useApi();
+  const { balance, updateBalance } = useUser();
+  const syncExperience = useExperienceSync();
+
+  const [betAmount, setBetAmount] = useState(10);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [rolling, setRolling] = useState(false);
 
   const handlePlay = async () => {
     if (betAmount <= 0) {
-      toast.error('Bet amount must be positive')
-      return
+      toast.error("Bet amount must be positive");
+      return;
     }
     if (balance < betAmount) {
-      toast.error('Insufficient balance')
-      return
+      toast.error("Insufficient balance");
+      return;
     }
 
-    setLoading(true)
-    setRolling(true)
-    setResult(null)
-
-    // Animate rolling
-    setTimeout(() => setRolling(false), 1000)
+    setLoading(true);
+    setRolling(true);
+    setResult(null);
+    setTimeout(() => setRolling(false), 1000);
 
     try {
-      const res = await post('/game/dicepoker', { betAmount })
-      
-  setResult(res)
-  updateBalance(res.balance)
-  syncExperience(res)
-      
+      const res = await post("/game/dicepoker", { betAmount });
+      setResult(res);
+      updateBalance(res.balance);
+      syncExperience(res);
+
       if (res.win) {
-        toast.success(`${res.hand}! You won ${res.payout} coins!`)
+        toast.success(`${res.hand}! You won ${res.payout} coins!`);
       } else {
-        toast.error(`${res.hand}. You lost ${betAmount} coins`)
+        toast.error(`${res.hand}. You lost ${betAmount} coins`);
       }
     } catch (err) {
-      toast.error(err.message || 'Failed to play')
-      setRolling(false)
+      toast.error(err.message || "Failed to play");
+      setRolling(false);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const renderDice = (value) => {
-    return DICE_FACES[value - 1] || '?'
-  }
+  const headerStats = useMemo(
+    () => [
+      {
+        label: "Wallet balance",
+        value: `${formatCoins(balance)} coins`,
+      },
+      {
+        label: "Bet amount",
+        value: `${formatCoins(betAmount)} coins`,
+      },
+      {
+        label: "Last hand",
+        value: result?.hand ?? "—",
+        hint: result ? `${result.multiplier}x` : undefined,
+      },
+      {
+        label: "Outcome",
+        value: result ? (result.win ? "Win" : "Loss") : "Awaiting roll",
+        hint: result ? `${formatCoins(result.payout ?? 0)} coins` : undefined,
+      },
+    ],
+    [balance, betAmount, result]
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-900 via-orange-900 to-yellow-900 p-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">🎲 Dice Poker</h1>
-          <p className="text-gray-300">Roll 5 dice and make poker hands!</p>
-          <div className="mt-4 text-xl text-yellow-400">Balance: {balance} coins</div>
-        </div>
+    <SoloGameLayout
+      title="🎲 Dice Poker"
+      subtitle="Roll five dice and chase classic poker hands for escalating multipliers."
+      accent="Solo challenge"
+      stats={headerStats}
+    >
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+        <SoloCard className="space-y-6">
+          <header className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Your roll</p>
+            <h2 className="text-lg font-semibold text-white">Build the strongest hand</h2>
+          </header>
+          <div className="flex flex-col items-center gap-4">
+            {result ? (
+              <RevealingDiceFaces
+                dice={result.dice}
+                size="xl"
+                delay={180}
+                className="flex gap-4"
+                faceWrapperClassName={`${rolling ? "animate-bounce" : "hover:scale-105"} h-20 w-20 rounded-2xl border border-white/15 bg-white/10 shadow-lg transition`}
+                faceClassName="drop-shadow-xl"
+              />
+            ) : (
+              <div className="flex gap-4">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div
+                    key={`placeholder-die-${index}`}
+                    className="flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-3xl"
+                  >
+                    🎲
+                  </div>
+                ))}
+              </div>
+            )}
 
-        {/* Bet Amount */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6">
-          <label className="block text-white font-semibold mb-2">Bet Amount:</label>
-          <div className="flex items-center gap-4">
-            <input
-              type="number"
-              value={betAmount}
-              onChange={(e) => setBetAmount(+e.target.value)}
-              className="flex-1 px-4 py-3 rounded bg-white/20 text-white text-lg font-bold border-2 border-white/30"
-              min="1"
-              disabled={loading}
-            />
+            <div className="text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Hand</p>
+              <p className="mt-2 text-2xl font-semibold text-white">
+                {result?.hand ?? "Awaiting roll"}
+              </p>
+              {result ? (
+                <p className="mt-1 text-sm text-amber-200">Multiplier {result.multiplier}x</p>
+              ) : null}
+            </div>
+
+            {result ? (
+              <div className={`w-full rounded-3xl border px-6 py-6 text-center shadow-inner ${
+                result.win ? "border-emerald-400/40 bg-emerald-500/20" : "border-rose-400/40 bg-rose-500/20"
+              }`}>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-white/70">
+                  {result.win ? "You hit a winner" : "No winner"}
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-white">
+                  {result.win ? `+${formatCoins(result.payout ?? 0)}` : "0"} coins
+                </p>
+                {result.win ? (
+                  <p className="mt-1 text-xs text-white/70">
+                    {formatCoins(betAmount)} × {result.multiplier} = {formatCoins(result.payout ?? 0)}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </SoloCard>
+
+        <div className="space-y-6">
+          <SoloCard className="space-y-6">
+            <div className="space-y-3">
+              <label className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50" htmlFor="dicepoker-bet">
+                Bet amount
+              </label>
+              <input
+                id="dicepoker-bet"
+                type="number"
+                min="1"
+                value={betAmount}
+                onChange={(event) => setBetAmount(+event.target.value)}
+                className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-lg font-semibold text-white outline-none transition focus:border-amber-400 focus:bg-black/60 focus:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={loading}
+              />
+            </div>
+
             <button
+              type="button"
               onClick={handlePlay}
               disabled={loading}
-              className="px-8 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg font-bold text-lg"
+              className="inline-flex w-full items-center justify-center rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-400 via-emerald-500 to-rose-500 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-gray-900 shadow-lg shadow-emerald-500/25 transition hover:shadow-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? 'Rolling...' : 'ROLL DICE'}
+              {loading ? "Rolling" : "Roll dice"}
             </button>
-          </div>
-        </div>
+          </SoloCard>
 
-        {/* Dice Display */}
-        {result && (
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-8 mb-6">
-            <h3 className="text-white font-bold text-xl mb-6 text-center">Your Roll:</h3>
-            
-            <div className="flex justify-center gap-4 mb-8">
-              {result.dice.map((value, i) => (
-                <div
-                  key={i}
-                  className={`w-24 h-24 bg-white rounded-lg shadow-lg flex items-center justify-center text-6xl transform transition-all duration-300 ${
-                    rolling ? 'animate-bounce' : 'hover:scale-110'
-                  }`}
-                >
-                  {renderDice(value)}
-                </div>
-              ))}
+          <SoloCard className="space-y-4">
+            <header className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Hand rankings</p>
+              <h2 className="text-lg font-semibold text-white">Know the payouts</h2>
+            </header>
+            <div className="space-y-2 text-sm text-white/70">
+              {Object.entries(HAND_MULTIPLIERS)
+                .sort((a, b) => b[1] - a[1])
+                .map(([hand, multiplier]) => (
+                  <div
+                    key={hand}
+                    className={`flex items-center justify-between rounded-2xl border px-4 py-3 transition ${
+                      result?.hand === hand ? "border-amber-400/40 bg-amber-500/20" : "border-white/10 bg-white/5"
+                    }`}
+                  >
+                    <span className="font-semibold text-white">{hand}</span>
+                    <span className={`font-semibold ${multiplier > 0 ? "text-amber-200" : "text-white/40"}`}>
+                      {multiplier > 0 ? `${multiplier}x` : "No win"}
+                    </span>
+                  </div>
+                ))}
             </div>
+          </SoloCard>
 
-            {/* Hand Result */}
-            <div className="text-center mb-6">
-              <p className="text-gray-300 text-sm mb-2">Hand:</p>
-              <p className="text-white text-3xl font-bold mb-2">{result.hand}</p>
-              <p className="text-yellow-400 text-xl">Multiplier: {result.multiplier}x</p>
-            </div>
-
-            {/* Payout */}
-            <div className={`text-center p-6 rounded-lg ${result.win ? 'bg-green-500/30' : 'bg-red-500/30'}`}>
-              <p className="text-white text-lg font-semibold mb-2">
-                {result.win ? '🎉 YOU WON!' : '😢 NO WIN'}
-              </p>
-              <p className="text-white text-4xl font-bold">
-                {result.win ? `+${result.payout}` : `0`} coins
-              </p>
-              {result.win && (
-                <p className="text-gray-200 text-sm mt-2">
-                  {betAmount} × {result.multiplier} = {result.payout}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Hand Rankings */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
-          <h3 className="text-white font-bold text-lg mb-4">Poker Hands & Payouts:</h3>
-          <div className="space-y-2">
-            {Object.entries(HAND_MULTIPLIERS)
-              .sort((a, b) => b[1] - a[1])
-              .map(([hand, multiplier]) => (
-                <div
-                  key={hand}
-                  className={`flex justify-between items-center p-3 rounded ${
-                    result?.hand === hand ? 'bg-yellow-500/30 ring-2 ring-yellow-400' : 'bg-white/5'
-                  }`}
-                >
-                  <span className="text-white font-semibold">{hand}</span>
-                  <span className={`font-bold ${multiplier > 0 ? 'text-yellow-400' : 'text-gray-400'}`}>
-                    {multiplier > 0 ? `${multiplier}x` : 'No Win'}
-                  </span>
-                </div>
-              ))}
-          </div>
-
-          {/* Hand Descriptions */}
-          <div className="mt-6 text-sm text-gray-300 space-y-2">
-            <p><strong className="text-white">Five of a Kind:</strong> All 5 dice show the same number (e.g., 🎲🎲🎲🎲🎲)</p>
-            <p><strong className="text-white">Four of a Kind:</strong> 4 dice show the same number</p>
-            <p><strong className="text-white">Full House:</strong> 3 of one number + 2 of another (e.g., 🎲🎲🎲🎯🎯)</p>
-            <p><strong className="text-white">Straight:</strong> 5 consecutive numbers (1-2-3-4-5 or 2-3-4-5-6)</p>
-            <p><strong className="text-white">Three of a Kind:</strong> 3 dice show the same number</p>
-            <p><strong className="text-white">Two Pair:</strong> 2 pairs of matching numbers</p>
-            <p><strong className="text-white">One Pair:</strong> 2 dice show the same number</p>
-            <p><strong className="text-white">High Card:</strong> No matching pattern (no win)</p>
-          </div>
+          <SoloCard className="space-y-3 text-sm text-white/70">
+            <header className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Hand guide</p>
+              <h2 className="text-lg font-semibold text-white">Quick refresher</h2>
+            </header>
+            <ul className="space-y-2">
+              <li><span className="font-semibold text-white">Five of a Kind:</span> All five dice identical.</li>
+              <li><span className="font-semibold text-white">Four of a Kind:</span> Four dice show the same number.</li>
+              <li><span className="font-semibold text-white">Full House:</span> Three of one number plus a pair.</li>
+              <li><span className="font-semibold text-white">Straight:</span> Five in sequence (1-5 or 2-6).</li>
+              <li><span className="font-semibold text-white">Three of a Kind:</span> Any three matching dice.</li>
+              <li><span className="font-semibold text-white">Two Pair:</span> Two different pairs.</li>
+              <li><span className="font-semibold text-white">One Pair:</span> Single matching pair.</li>
+              <li><span className="font-semibold text-white">High Card:</span> No combinations — no win.</li>
+            </ul>
+          </SoloCard>
         </div>
       </div>
-    </div>
-  )
+    </SoloGameLayout>
+  );
 }
 
-export default RequireAuth(DicePokerPage)
+export default RequireAuth(DicePokerPage);

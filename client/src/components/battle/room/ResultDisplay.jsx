@@ -26,7 +26,7 @@ export default function ResultDisplay({
             className={
               room.game === "dice"
                 ? `w-32 h-32 bg-gradient-to-br from-purple-600 to-pink-600 text-white rounded-2xl border-4 border-white/30 shadow-2xl flex items-center justify-center text-5xl font-bold`
-                : `w-32 h-32 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 border-4 border-white/30 shadow-2xl flex items-center justify-center text-4xl font-bold ${
+                : `w-32 h-32 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 border-4 border-white/30 shadow-2xl flex items-center justify-center text-2xl font-bold uppercase tracking-wide ${
                     isRevealing ? "animate-flip" : ""
                   }`
             }

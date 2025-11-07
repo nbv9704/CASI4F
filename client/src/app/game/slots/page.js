@@ -1,180 +1,256 @@
-// client/src/app/game/slots/page.js
-'use client'
+"use client";
 
-import RequireAuth from '@/components/RequireAuth'
-import { useState } from 'react'
-import useApi from '@/hooks/useApi'
-import { useUser } from '@/context/UserContext'
-import useExperienceSync from '@/hooks/useExperienceSync'
-import { toast } from 'react-hot-toast'
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "react-hot-toast";
 
-// 9 symbols với emoji
+import RequireAuth from "@/components/RequireAuth";
+import SoloCard from "@/components/solo/SoloCard";
+import SoloGameLayout from "@/components/solo/SoloGameLayout";
+import { useUser } from "@/context/UserContext";
+import useApi from "@/hooks/useApi";
+import useExperienceSync from "@/hooks/useExperienceSync";
+import { formatCoins } from "@/utils/format";
+
 const SYMBOLS = [
-  { name: 'cherry', emoji: '🍒', multiplier: 1.25 },
-  { name: 'lemon', emoji: '🍋', multiplier: 1.5 },
-  { name: 'watermelon', emoji: '🍉', multiplier: 2 },
-  { name: 'heart', emoji: '❤️', multiplier: 3 },
-  { name: 'bell', emoji: '🔔', multiplier: 4 },
-  { name: 'diamond', emoji: '💎', multiplier: 5 },
-  { name: 'seven', emoji: '7️⃣', multiplier: 8 },
-  { name: 'horseshoe', emoji: '🐴', multiplier: 10 },
-  { name: 'money', emoji: '💰', multiplier: 20 }
-]
+  { name: "cherry", emoji: "🍒", multiplier: 1.25 },
+  { name: "lemon", emoji: "🍋", multiplier: 1.5 },
+  { name: "watermelon", emoji: "🍉", multiplier: 2 },
+  { name: "heart", emoji: "❤️", multiplier: 3 },
+  { name: "bell", emoji: "🔔", multiplier: 4 },
+  { name: "diamond", emoji: "💎", multiplier: 5 },
+  { name: "seven", emoji: "7️⃣", multiplier: 8 },
+  { name: "horseshoe", emoji: "🐴", multiplier: 10 },
+  { name: "money", emoji: "💰", multiplier: 20 },
+];
 
 function SlotsPage() {
-  const { post } = useApi()
-  const { balance, updateBalance } = useUser()
-  const syncExperience = useExperienceSync()
+  const { post } = useApi();
+  const { balance, updateBalance } = useUser();
+  const syncExperience = useExperienceSync();
 
-  const [betAmount, setBetAmount] = useState(1)
-  const [spinning, setSpinning] = useState(false)
+  const [betAmount, setBetAmount] = useState(1);
+  const [spinning, setSpinning] = useState(false);
   const [grid, setGrid] = useState([
     [SYMBOLS[0], SYMBOLS[1], SYMBOLS[2]],
     [SYMBOLS[3], SYMBOLS[4], SYMBOLS[5]],
-    [SYMBOLS[6], SYMBOLS[7], SYMBOLS[8]]
-  ])
-  const [result, setResult] = useState(null)
+    [SYMBOLS[6], SYMBOLS[7], SYMBOLS[8]],
+  ]);
+  const [result, setResult] = useState(null);
+  const spinTimeoutRef = useRef(null);
 
-  const handleSpin = async (e) => {
-    e.preventDefault()
+  const headerStats = useMemo(() => {
+    const outcomeLabel = result ? (result.win ? "Win" : "Loss") : "Awaiting spin";
+    const multiplier = result?.totalMultiplier ? `${result.totalMultiplier}x` : "—";
+    const lineHint = result?.winningLines?.length
+      ? `${result.winningLines.length} line${result.winningLines.length > 1 ? "s" : ""}`
+      : undefined;
+
+    return [
+      {
+        label: "Wallet balance",
+        value: `${formatCoins(balance)} coins`,
+      },
+      {
+        label: "Bet amount",
+        value: `${formatCoins(betAmount)} coins`,
+      },
+      {
+        label: "Last result",
+        value: outcomeLabel,
+        hint: result ? `${formatCoins(result.payout ?? 0)} coins` : undefined,
+      },
+      {
+        label: "Best multiplier",
+        value: multiplier,
+        hint: lineHint,
+      },
+    ];
+  }, [balance, betAmount, result]);
+
+  const handleSpin = async (event) => {
+    event.preventDefault();
 
     if (betAmount <= 0) {
-      toast.error('Bet must be > 0')
-      return
+      toast.error("Bet must be positive");
+      return;
     }
 
-    setSpinning(true)
-    setResult(null)
+    if (balance < betAmount) {
+      toast.error("Insufficient balance");
+      return;
+    }
+
+    setSpinning(true);
+    setResult(null);
+
+    if (spinTimeoutRef.current) {
+      clearTimeout(spinTimeoutRef.current);
+      spinTimeoutRef.current = null;
+    }
 
     try {
-      const data = await post('/game/slots', { betAmount })
+      const data = await post("/game/slots", { betAmount });
 
-      // Animate spinning
-      setTimeout(() => {
-        // Parse emoji grid từ server response
-        const serverGrid = data.grid || []
-        const parsedGrid = serverGrid.map(row =>
-          row.map(emoji => SYMBOLS.find(s => s.emoji === emoji) || SYMBOLS[0])
-        )
+      const timeout = setTimeout(() => {
+        const serverGrid = data.grid ?? [];
+        const parsedGrid = serverGrid.map((row) =>
+          row.map((emoji) => SYMBOLS.find((symbol) => symbol.emoji === emoji) ?? SYMBOLS[0])
+        );
 
-  setGrid(parsedGrid)
-  setResult(data)
-  updateBalance(data.balance)
-  syncExperience(data)
-  setSpinning(false)
+        setGrid(parsedGrid);
+        setResult(data);
+        updateBalance(data.balance);
+        syncExperience(data);
+        setSpinning(false);
+        spinTimeoutRef.current = null;
 
         if (data.win) {
-          toast.success(`🎉 You win! ${data.totalMultiplier}x - Payout: ${data.payout}`)
+          toast.success(`🎉 You win! ${data.totalMultiplier}x - Payout: ${data.payout}`);
         } else {
-          toast.error('😢 No winning lines this time')
+          toast.error("😢 No winning lines this time");
         }
-      }, 2000) // Match animation duration
-    } catch (err) {
-      setSpinning(false)
-      // Error toast handled by useApi
+      }, 2000);
+
+      spinTimeoutRef.current = timeout;
+    } catch (error) {
+      if (spinTimeoutRef.current) {
+        clearTimeout(spinTimeoutRef.current);
+        spinTimeoutRef.current = null;
+      }
+      setSpinning(false);
     }
-  }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (spinTimeoutRef.current) {
+        clearTimeout(spinTimeoutRef.current);
+        spinTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-900 via-purple-900 to-indigo-900 p-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">🎰 Slots</h1>
-          <p className="text-gray-300">Spin the reels — match the lines!</p>
-          <div className="mt-4 text-xl text-yellow-400">Balance: {balance} coins</div>
-        </div>
+    <SoloGameLayout
+      title="🎰 Slots"
+      subtitle="Spin the neon reels and chase eight different win lines."
+      accent="Solo challenge"
+      stats={headerStats}
+    >
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+        <SoloCard className="space-y-6">
+          <header className="space-y-2 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/50">Reel display</p>
+            <h2 className="text-lg font-semibold text-white">Match symbols across rows, columns, or diagonals</h2>
+          </header>
 
-        {/* Slots Machine */}
-        <div className="bg-gradient-to-b from-yellow-500 to-yellow-700 rounded-3xl p-8 shadow-2xl mb-6">
-          {/* Display */}
-          <div className="bg-gray-900 rounded-2xl p-6 mb-6">
+          <div className="rounded-3xl border border-amber-400/40 bg-gradient-to-br from-amber-500/20 via-rose-500/10 to-violet-500/20 p-6 shadow-xl shadow-amber-500/20">
             <div className="grid grid-cols-3 gap-4">
-              {grid.map((row, r) =>
-                row.map((symbol, c) => (
+              {grid.map((row, rowIndex) =>
+                row.map((symbol, columnIndex) => (
                   <div
-                    key={`${r}-${c}`}
-                    className={`bg-white rounded-xl h-28 flex items-center justify-center text-6xl shadow-lg ${
-                      spinning ? 'animate-bounce' : ''
+                    key={`slot-cell-${rowIndex}-${columnIndex}`}
+                    className={`flex h-28 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-6xl shadow-lg shadow-black/40 transition ${
+                      spinning ? "animate-bounce" : ""
                     }`}
                     style={{
-                      animationDelay: `${c * 0.15}s`,
-                      filter: spinning ? 'blur(4px)' : 'none'
+                      animationDelay: `${columnIndex * 0.15}s`,
+                      filter: spinning ? "blur(4px)" : "none",
                     }}
                   >
-                    {spinning ? '❓' : symbol.emoji}
+                    {spinning ? "❓" : symbol.emoji}
                   </div>
                 ))
               )}
             </div>
           </div>
 
-          {/* Result Display */}
-          {result && !spinning && (
-            <div className="bg-gray-900 rounded-xl p-6 text-white text-center mb-6">
-              <div className={`text-3xl font-bold mb-2 ${result.win ? 'text-yellow-400' : 'text-gray-400'}`}>
-                {result.win ? '🎊 JACKPOT!' : '😢 NO WIN'}
-              </div>
-              {result.win ? (
-                <>
-                  <div className="text-lg mt-2">Total Multiplier: <span className="text-yellow-400 font-bold">{result.totalMultiplier}x</span></div>
-                  <div className="text-4xl font-bold text-green-400 mt-2">+{result.payout} coins</div>
-                  {result.winningLines && result.winningLines.length > 0 && (
-                    <div className="text-sm text-gray-300 mt-3">
-                      {result.winningLines.length} winning line{result.winningLines.length > 1 ? 's' : ''}! 🎯
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-red-400 text-2xl mt-2">-{betAmount} coins</div>
-              )}
-            </div>
-          )}
-
-          {/* Bet Controls */}
-          <form onSubmit={handleSpin} className="space-y-4">
-            <div className="bg-gray-900 rounded-xl p-4">
-              <label className="block mb-2 font-semibold text-white">Bet Amount:</label>
-              <input
-                type="number"
-                min="1"
-                value={betAmount}
-                onChange={(e) => setBetAmount(+e.target.value)}
-                className="w-full px-4 py-3 rounded bg-gray-800 text-white text-lg font-bold border-2 border-gray-700"
-                disabled={spinning}
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full px-8 py-6 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white rounded-2xl font-bold text-2xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-              disabled={spinning}
+          {result && !spinning ? (
+            <div
+              className={`rounded-3xl border px-6 py-6 text-center shadow-inner ${
+                result.win ? "border-amber-400/40 bg-amber-500/20" : "border-white/15 bg-white/10"
+              }`}
             >
-              {spinning ? '🎰 SPINNING...' : '🎰 SPIN NOW'}
-            </button>
-          </form>
-        </div>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-white/70">Round summary</p>
+              <p className="mt-3 text-3xl font-semibold text-white">
+                {result.win ? "🎊 Jackpot!" : "😢 No win"}
+              </p>
+              <p className={`mt-2 text-2xl font-semibold ${result.win ? "text-emerald-200" : "text-white/60"}`}>
+                {result.win ? `+${formatCoins(result.payout ?? 0)}` : `-${formatCoins(betAmount)}`} coins
+              </p>
+              {result.win ? (
+                <p className="mt-2 text-sm text-amber-200">
+                  Total multiplier {result.totalMultiplier}x · {result.winningLines?.length ?? 0} winning line
+                  {result.winningLines && result.winningLines.length !== 1 ? "s" : ""}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
-        {/* Paytable */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
-          <h2 className="text-white text-xl font-bold mb-4">💎 Paytable (3-of-a-kind)</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {SYMBOLS.map(s => (
-              <div key={s.name} className="bg-white/10 rounded-lg p-4 flex items-center justify-between">
-                <span className="text-4xl">{s.emoji}</span>
-                <span className="text-yellow-400 font-bold text-xl">{s.multiplier}x</span>
+          {!result && !spinning ? (
+            <p className="text-center text-sm text-white/60">
+              Spin to see winnings and collect bright payouts.
+            </p>
+          ) : null}
+        </SoloCard>
+
+        <div className="space-y-6">
+          <SoloCard className="space-y-6">
+            <form className="space-y-6" onSubmit={handleSpin}>
+              <div className="space-y-2">
+                <label
+                  className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50"
+                  htmlFor="slots-bet"
+                >
+                  Bet amount
+                </label>
+                <input
+                  id="slots-bet"
+                  type="number"
+                  min="1"
+                  value={betAmount}
+                  onChange={(event) => setBetAmount(+event.target.value)}
+                  className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-lg font-semibold text-white outline-none transition focus:border-amber-400 focus:bg-black/60 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={spinning}
+                />
               </div>
-            ))}
-          </div>
-          <div className="mt-6 text-gray-300 space-y-2">
-            <p>• Win lines: <strong>3 rows + 3 columns + 2 diagonals = 8 total</strong></p>
-            <p>• Match 3 symbols in any line to win!</p>
-            <p>• Multiple lines <strong className="text-yellow-400">multiply your payout!</strong></p>
-          </div>
+
+              <button
+                type="submit"
+                disabled={spinning}
+                className="inline-flex w-full items-center justify-center rounded-2xl border border-rose-400/40 bg-gradient-to-r from-rose-400 via-fuchsia-500 to-indigo-500 px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-gray-900 shadow-lg shadow-rose-500/25 transition hover:shadow-rose-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {spinning ? "Spinning..." : "Spin now"}
+              </button>
+            </form>
+          </SoloCard>
+
+          <SoloCard className="space-y-4">
+            <header className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Paytable</p>
+              <h2 className="text-lg font-semibold text-white">Three-of-a-kind rewards</h2>
+            </header>
+            <div className="grid grid-cols-2 gap-3 text-sm text-white/70 md:grid-cols-3">
+              {SYMBOLS.map((symbol) => (
+                <div
+                  key={symbol.name}
+                  className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                >
+                  <span className="text-3xl">{symbol.emoji}</span>
+                  <span className="font-semibold text-amber-200">{symbol.multiplier}x</span>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2 text-sm text-white/70">
+              <p>• Win across 3 rows, 3 columns, or 2 diagonals — 8 lines total.</p>
+              <p>• Multiple winning lines stack to boost your total payout.</p>
+              <p>• Keep an eye out for the 💰 symbol for the biggest rewards.</p>
+            </div>
+          </SoloCard>
         </div>
       </div>
-    </div>
-  )
+    </SoloGameLayout>
+  );
 }
 
-export default RequireAuth(SlotsPage)
+export default RequireAuth(SlotsPage);

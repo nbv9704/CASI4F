@@ -1,7 +1,19 @@
 // components/battle/BlackjackDiceDisplay.jsx
 "use client";
 
-const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+import DiceFace from "../DiceFace";
+
+function formatCoins(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  try {
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(numeric);
+  } catch {
+    return numeric;
+  }
+}
 
 export default function BlackjackDiceDisplay({ 
   room, 
@@ -14,7 +26,8 @@ export default function BlackjackDiceDisplay({
   hitting,
   standing
 }) {
-  const bjd = metadata?.blackjackDice;
+  const meta = metadata ?? room?.metadata ?? {};
+  const bjd = meta?.blackjackDice;
   if (!bjd) return null;
 
   const myPlayerData = bjd.players?.find(p => String(p.userId) === String(myId));
@@ -24,12 +37,7 @@ export default function BlackjackDiceDisplay({
 
   const getDiceDisplay = (dice) => {
     return dice.map((d, idx) => (
-      <div
-        key={idx}
-        className="w-12 h-12 bg-white rounded-lg shadow-xl flex items-center justify-center text-3xl font-bold"
-      >
-        {DICE_FACES[d - 1]}
-      </div>
+      <DiceFace key={idx} value={d} size="sm" />
     ));
   };
 
@@ -45,8 +53,26 @@ export default function BlackjackDiceDisplay({
     return 'PLAYING';
   };
 
+  const resolveWinnerInfo = (winnerId) => {
+    if (!winnerId) return { displayName: "Unknown", avatar: null };
+    const players = Array.isArray(room?.players) ? room.players : [];
+    const playerEntry = players.find((entry) => String(entry?.userId) === String(winnerId)) ||
+      bjd.players?.find((entry) => String(entry?.userId) === String(winnerId));
+    const displayName = nameById?.(winnerId) || playerEntry?.user?.displayName || playerEntry?.username || playerEntry?.user?.username || `Player ${players.findIndex((entry) => String(entry?.userId) === String(winnerId)) + 1}`;
+    const avatar = avatarById?.(winnerId) || playerEntry?.user?.avatar || playerEntry?.avatar || null;
+    return { displayName, avatar };
+  };
+
+  const participantCount = Array.isArray(room?.players)
+    ? room.players.filter(Boolean).length
+    : Array.isArray(bjd.players)
+      ? bjd.players.filter(Boolean).length
+      : 0;
+  const totalPotRaw = Number(room?.betAmount || 0) * participantCount;
+  const totalPot = Number.isFinite(totalPotRaw) ? totalPotRaw : 0;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Players Grid */}
       <div className="grid sm:grid-cols-2 gap-4">
         {bjd.players.map((player) => {
@@ -120,22 +146,50 @@ export default function BlackjackDiceDisplay({
 
       {/* Winner Announcement */}
       {phase === 'finished' && winners.length > 0 && (
-        <div className="bg-green-500/30 backdrop-blur-sm rounded-lg p-6 text-center border-2 border-green-500">
-          <div className="text-3xl font-bold text-green-400 mb-2">
-            🏆 {winners.length === 1 ? 'WINNER!' : 'TIE!'}
-          </div>
-          <div className="text-white text-xl mb-2">
-            {winners.map((wId) => nameById(wId)).join(' & ')}
-          </div>
-          {winners.length === 1 ? (
-            <div className="text-green-300 mt-2">
-              💰 Winner takes all: <span className="font-bold">{room.betAmount * room.players.length} coins</span>
+        <div className="rounded-3xl border border-emerald-400/30 bg-emerald-500/15 px-5 py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex-1">
+              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.3em] text-emerald-200">
+                Winner{winners.length > 1 ? 's' : ''}
+              </p>
+              <div className="flex flex-wrap items-center gap-4">
+                {winners.map((winnerId) => {
+                  const { displayName, avatar } = resolveWinnerInfo(winnerId);
+                  const initials = displayName?.[0]?.toUpperCase?.() || '?';
+                  return (
+                    <div
+                      key={winnerId}
+                      className="flex items-center gap-3 rounded-2xl border border-emerald-400/30 bg-black/30 px-4 py-2 text-white shadow-inner"
+                    >
+                      {avatar ? (
+                        <img
+                          src={avatar}
+                          alt={displayName}
+                          className="h-10 w-10 rounded-full object-cover ring-2 ring-emerald-400"
+                        />
+                      ) : (
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/30 text-lg font-semibold text-emerald-100">
+                          {initials}
+                        </span>
+                      )}
+                      <div>
+                        <p className="text-sm font-semibold text-white line-clamp-1">{displayName}</p>
+                        <p className="text-xs uppercase tracking-[0.3em] text-emerald-200">Victory confirmed</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          ) : (
-            <div className="text-yellow-300 mt-2">
-              Split pot: <span className="font-bold">{Math.floor((room.betAmount * room.players.length) / winners.length)} coins each</span>
+
+            <div className="rounded-2xl border border-white/10 bg-black/30 px-5 py-6 text-white lg:ml-6 lg:w-60">
+              <div className="flex flex-col items-center text-center leading-tight">
+                <span className="text-xs uppercase tracking-[0.35em] text-white/60">Prize pool</span>
+                <span className="text-3xl font-semibold text-emerald-200">+{formatCoins(totalPot)}</span>
+                <span className="text-xs text-white/50">coins distributed to winners</span>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

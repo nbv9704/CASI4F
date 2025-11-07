@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -17,19 +18,22 @@ import RequireAuth from '@/components/RequireAuth'
 import { GAMES } from "@/data/games";
 import { useLocale } from "@/context/LocaleContext";
 import useApi from "@/hooks/useApi";
+import { useUser } from "@/context/UserContext";
 
 const ALLOWED_SIDES = [4, 6, 8, 10, 12, 20];
 const STATUS_STYLES = {
-  waiting: 'bg-amber-100 text-amber-700 dark:bg-amber-400/25 dark:text-amber-100',
-  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-400/25 dark:text-emerald-100',
-  finished: 'bg-neutral-200 text-neutral-700 dark:bg-neutral-600/40 dark:text-neutral-200',
+  waiting: "border border-amber-400/40 bg-amber-500/15 text-amber-100",
+  active: "border border-emerald-400/45 bg-emerald-500/15 text-emerald-100",
+  finished: "border border-slate-500/50 bg-slate-600/30 text-slate-200",
 };
 
 function BattleGameRoomsPage() {
   const api = useApi();
   const router = useRouter();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { gameId } = useParams();
+  const { user } = useUser();
+  const myUserId = user?.id || user?._id || null;
 
   const gameConfig = useMemo(() => GAMES.find((g) => g.id === gameId), [gameId]);
   const localizedGameName = useMemo(() => {
@@ -103,6 +107,26 @@ function BattleGameRoomsPage() {
       // handled by useApi toast layer
     }
   }
+
+  const formatCoins = useMemo(() => {
+    return (value) => {
+      if (typeof value !== "number") {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          return value;
+        }
+        value = numeric;
+      }
+
+      try {
+        return new Intl.NumberFormat(locale, {
+          maximumFractionDigits: 2,
+        }).format(value);
+      } catch {
+        return value;
+      }
+    };
+  }, [locale]);
 
   return (
     <main className="min-h-screen text-slate-100">
@@ -187,89 +211,162 @@ function BattleGameRoomsPage() {
             Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={`s-${index}`}
-                className="rounded-3xl border border-slate-800/70 bg-slate-900/80 p-6 text-slate-400 shadow-lg shadow-black/10"
+                className="relative overflow-hidden rounded-3xl border border-slate-800/75 bg-slate-950/75 p-6 text-slate-400 shadow-lg shadow-black/15"
               >
-                <div className="flex flex-col gap-3">
-                  <div className="h-5 rounded-full bg-slate-700/60" />
-                  <div className="h-8 rounded-2xl bg-slate-700/60" />
-                  <div className="h-4 rounded-full bg-slate-700/40" />
-                  <div className="h-4 rounded-full bg-slate-700/40" />
-                  <div className="h-12 rounded-2xl bg-slate-700/50" />
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/15 via-transparent to-transparent" aria-hidden="true" />
+                <div className="relative flex flex-col gap-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-11 w-11 rounded-2xl bg-slate-700/60" />
+                      <div className="space-y-2">
+                        <div className="h-3 w-24 rounded-full bg-slate-700/60" />
+                        <div className="h-3 w-32 rounded-full bg-slate-800/60" />
+                      </div>
+                    </div>
+                    <div className="h-6 w-20 rounded-full bg-slate-700/60" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="h-16 rounded-2xl bg-slate-800/50" />
+                    <div className="h-16 rounded-2xl bg-slate-800/50" />
+                    <div className="h-16 rounded-2xl bg-slate-800/50" />
+                    <div className="h-16 rounded-2xl bg-slate-800/50" />
+                  </div>
+                  <div className="h-11 rounded-2xl bg-slate-800/50" />
                 </div>
               </div>
             ))}
 
           {rooms.map((room) => {
-            const host = Array.isArray(room.players) && room.players.length ? room.players[0] : null;
-            const isFull = room.players?.length >= room.maxPlayers;
+            const playersList = Array.isArray(room.players) ? room.players : [];
+            const host = playersList.length ? playersList[0] : null;
+            const isParticipant = Boolean(
+              myUserId &&
+              playersList.some((player) => player && String(player.userId) === String(myUserId))
+            );
+            const isFull = playersList.length >= room.maxPlayers;
+            const isFullForMe = isFull && !isParticipant;
             const statusKey = room.status?.toLowerCase?.() || 'waiting';
             const statusLabel = t(`games.battleRooms.status.${statusKey}`);
+            const betValue = typeof room.betAmount === 'number' ? room.betAmount : Number(room.betAmount) || 0;
+            const hostProfile = host?.user || {};
+            const hostName = hostProfile.displayName || hostProfile.username || host?.username || t('navbar.menu.playerFallback');
+            const hostAvatar = hostProfile.avatar || host?.avatar || '/default-avatar.png';
+            const roomIdShort = room.roomId?.slice(0, 8) || '--------';
+            const joinDisabled = (!isParticipant && room.status !== 'waiting') || isFullForMe;
+            const joinLabel = isParticipant
+              ? t('games.battleRooms.joinStates.rejoin')
+              : isFullForMe
+                ? t('games.battleRooms.joinStates.full')
+                : room.status === 'active'
+                  ? t('games.battleRooms.joinStates.active')
+                  : t('games.battleRooms.joinStates.waiting');
+
+            const metrics = [
+              {
+                key: 'bet',
+                label: t('games.battleRooms.labels.bet'),
+                value: formatCoins(betValue),
+                tone: 'text-white',
+              },
+              {
+                key: 'players',
+                label: t('games.battleRooms.labels.players'),
+                value: `${playersList.length}/${room.maxPlayers}`,
+                tone: isFullForMe ? 'text-rose-200' : 'text-emerald-200',
+              },
+            ];
+
+            if (room.game === 'dice' && room?.metadata?.dice?.sides) {
+              metrics.push({
+                key: 'dice',
+                label: t('games.battleRooms.labels.dice'),
+                value: `d${room.metadata.dice.sides}`,
+                tone: 'text-sky-200',
+              });
+            }
+
+            if (room.game === 'coinflip' && host?.side) {
+              metrics.push({
+                key: 'hostSide',
+                label: t('games.battleRooms.labels.hostSide'),
+                value:
+                  host.side === 'heads'
+                    ? t('games.battleRooms.modal.sideHeads')
+                    : t('games.battleRooms.modal.sideTails'),
+                tone: 'text-indigo-200',
+              });
+            }
 
             return (
               <div
                 key={room.roomId}
-                className="relative overflow-hidden rounded-3xl border border-slate-800/80 bg-slate-950/70 p-6 text-slate-200 shadow-xl shadow-black/20 transition hover:-translate-y-1 hover:shadow-2xl"
+                className="relative overflow-hidden rounded-3xl border border-slate-800/80 bg-slate-950/75 p-6 text-slate-200 shadow-xl shadow-black/20 transition hover:-translate-y-1.5 hover:shadow-[0_28px_60px_rgba(8,15,40,0.45)]"
               >
-                <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-br from-indigo-500/30 via-transparent to-transparent" aria-hidden="true" />
-                <div className="relative flex items-center justify-between">
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${STATUS_STYLES[statusKey] || STATUS_STYLES.waiting}`}>
-                    {statusLabel}
-                  </span>
-                  <span className="font-mono text-sm text-slate-400">
-                    {t('games.battleRooms.labels.roomId')}: {room.roomId.slice(0, 8)}
-                  </span>
-                </div>
+                <div className="absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.28),_transparent_60%)]" aria-hidden="true" />
 
-                <div className="relative mt-5 space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                  <div className="flex items-center justify-between text-sm text-slate-300">
-                    <span>{t('games.battleRooms.labels.bet')}</span>
-                    <span className="font-semibold text-white">{room.betAmount}</span>
+                <div className="relative flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="relative h-11 w-11 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                      <Image
+                        src={hostAvatar}
+                        alt=""
+                        fill
+                        sizes="44px"
+                        className="object-cover"
+                        loading="lazy"
+                        unoptimized
+                      />
+                      <span className="absolute inset-0 rounded-2xl border border-white/10" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">{hostName}</p>
+                    </div>
                   </div>
 
-                  {room.game === "dice" && room?.metadata?.dice?.sides && (
-                    <div className="flex items-center justify-between text-sm text-slate-300">
-                      <span>{t('games.battleRooms.labels.dice')}</span>
-                      <span className="font-semibold text-white">d{room.metadata.dice.sides}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between text-sm text-slate-300">
-                    <span>{t('games.battleRooms.labels.players')}</span>
-                    <span className={`font-semibold ${isFull ? 'text-rose-400' : 'text-emerald-400'}`}>
-                      {room.players?.length}/{room.maxPlayers}
+                  <div className="flex flex-col items-end gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] ${
+                        STATUS_STYLES[statusKey] || STATUS_STYLES.waiting
+                      }`}
+                    >
+                      {statusLabel}
+                    </span>
+                    <span className="font-mono text-xs text-slate-400">
+                      {t('games.battleRooms.labels.roomId')}: {roomIdShort}
                     </span>
                   </div>
+                </div>
 
-                  {room.game === "coinflip" && host?.side && (
-                    <div className="flex items-center justify-between text-sm text-slate-300">
-                      <span>{t('games.battleRooms.labels.hostSide')}</span>
-                      <span className="font-semibold text-white">
-                        {host.side === 'heads'
-                          ? t('games.battleRooms.modal.sideHeads')
-                          : t('games.battleRooms.modal.sideTails')}
+                <div className="relative mt-6 grid grid-cols-2 gap-3 text-sm text-slate-300">
+                  {metrics.map((metric) => (
+                    <div
+                      key={metric.key}
+                      className="rounded-2xl border border-white/5 bg-white/5 px-4 py-3 backdrop-blur-sm"
+                    >
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-400">
+                        {metric.label}
                       </span>
+                      <p className={`mt-2 text-base font-semibold ${metric.tone}`}>{metric.value}</p>
                     </div>
-                  )}
+                  ))}
                 </div>
 
                 <button
                   onClick={async () => {
                     try {
-                      await api.post(`/pvp/${room.roomId}/join`);
+                      if (!isParticipant) {
+                        await api.post(`/pvp/${room.roomId}/join`);
+                      }
                       router.push(`/game/battle/${gameId}/${room.roomId}`);
                     } catch {
                       /* handled by useApi */
                     }
                   }}
-                  disabled={isFull || room.status !== 'waiting'}
-                  className="relative mt-6 w-full rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-800"
+                  disabled={joinDisabled}
+                  className="relative mt-6 w-full rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition hover:opacity-95 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-300"
                   type="button"
                 >
-                  {isFull
-                    ? t('games.battleRooms.joinStates.full')
-                    : room.status === 'active'
-                    ? t('games.battleRooms.joinStates.active')
-                    : t('games.battleRooms.joinStates.waiting')}
+                  {joinLabel}
                 </button>
               </div>
             );

@@ -8,7 +8,7 @@ export default function CoinflipReveal({ room, md, isRevealing }) {
     <div className="relative z-10 mt-6 rounded-3xl bg-gradient-to-br from-yellow-500/10 via-orange-500/10 to-red-500/10 backdrop-blur-sm border border-yellow-500/20 shadow-2xl p-8">
       <div className="flex items-center justify-center gap-8">
         <div
-          className={`w-32 h-32 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 border-4 border-white/30 shadow-2xl flex items-center justify-center text-4xl font-bold ${
+          className={`w-32 h-32 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 border-4 border-white/30 shadow-2xl flex items-center justify-center text-2xl font-bold uppercase tracking-wide ${
             isRevealing ? "animate-flip" : "animate-pulse"
           }`}
         >

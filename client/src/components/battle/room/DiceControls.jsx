@@ -21,20 +21,21 @@ export default function DiceControls({
       String(curUserId).slice(-6)
     : "-";
 
+  const pendingDisplay = pendingValue ?? (getRollFor(myId) === "-" ? "?" : getRollFor(myId));
+  const displayRoll = rolling ? "🎲" : pendingDisplay;
+  const isNumericRoll = !rolling && Number.isFinite(Number(displayRoll));
+
   return (
     <div className="relative z-10 mt-6 rounded-3xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-red-500/10 backdrop-blur-sm border border-purple-500/20 shadow-2xl p-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-6">
           <div
-            className={`w-24 h-24 bg-gradient-to-br from-purple-600 to-pink-600 text-white rounded-2xl border-4 border-white/20 shadow-2xl flex items-center justify-center text-4xl font-bold ${
-              rolling ? "animate-dice-roll-3d" : ""
-            }`}
+            className={`w-24 h-24 bg-gradient-to-br from-purple-600 to-pink-600 text-white rounded-2xl border-4 border-white/20 shadow-2xl flex items-center justify-center ${
+              isNumericRoll ? "text-5xl font-extrabold" : "text-2xl font-bold uppercase tracking-wide"
+            } ${rolling ? "animate-dice-roll-3d" : ""}`}
             style={{ perspective: "800px" }}
           >
-            {rolling
-              ? "🎲"
-              : (pendingValue ?? (getRollFor(myId) === "-" ? "?" : getRollFor(myId)))
-            }
+            {displayRoll}
           </div>
 
           <div className="space-y-2">

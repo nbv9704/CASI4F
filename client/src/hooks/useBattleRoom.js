@@ -27,11 +27,21 @@ export function useBattleRoom(roomId, gameType) {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const finishedToastShownRef = useRef(false);
+  const startCountdownRef = useRef(null);
   const apiRef = useRef(api);
   
   useEffect(() => {
     apiRef.current = api;
   }, [api]);
+
+  useEffect(() => {
+    return () => {
+      if (startCountdownRef.current) {
+        clearInterval(startCountdownRef.current);
+        startCountdownRef.current = null;
+      }
+    };
+  }, []);
 
   // Fetch current user
   useEffect(() => {
@@ -67,29 +77,61 @@ export function useBattleRoom(roomId, gameType) {
   // Common actions
   async function doReady() {
     if (readying || !apiRef.current) return;
+    setReadying(true);
     try {
-      setReadying(true);
       await apiRef.current.post(`/pvp/${roomId}/ready`, { ready: true });
       const d = await fetchRoom();
-      
+
       // Auto-start countdown if all ready
       if (d && d.players?.length >= 2) {
-        const allReady = d.players.every(p => p.ready);
-        if (allReady && d.status === "waiting") {
-          toast.success("All players ready! Starting in 3 seconds...");
-          setTimeout(async () => {
-            try {
-              const requestId = crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
-              await apiRef.current.post(`/pvp/${roomId}/start`, { requestId });
-              await fetchRoom();
-              await fetchUser();
-              finishedToastShownRef.current = false;
-            } catch (err) {
-              console.error("Auto-start failed:", err);
-            }
-          }, 3000);
+        const allReady = d.players.every((p) => p.ready);
+
+        if (!allReady || d.status !== "waiting") {
+          if (startCountdownRef.current) {
+            clearInterval(startCountdownRef.current);
+            startCountdownRef.current = null;
+          }
+          return;
         }
+
+        const toastId = `pvp-start-${roomId}`;
+        let counter = 3;
+
+        toast.success(`All players ready! Starting in ${counter}s...`, { id: toastId });
+
+        if (startCountdownRef.current) {
+          clearInterval(startCountdownRef.current);
+          startCountdownRef.current = null;
+        }
+
+        const startGame = async () => {
+          try {
+            const requestId = crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+            await apiRef.current.post(`/pvp/${roomId}/start`, { requestId });
+            await fetchRoom();
+            await fetchUser();
+            finishedToastShownRef.current = false;
+          } catch (err) {
+            console.error("Auto-start failed:", err?.__payload || err);
+          }
+        };
+
+        startCountdownRef.current = setInterval(() => {
+          counter -= 1;
+          if (counter > 0) {
+            toast.success(`All players ready! Starting in ${counter}s...`, { id: toastId });
+          } else {
+            clearInterval(startCountdownRef.current);
+            startCountdownRef.current = null;
+            toast.success("Battle starting now!", { id: toastId });
+            void startGame();
+          }
+        }, 1000);
       }
+    } catch (err) {
+      console.error("Ready action failed:", err?.__payload || err);
+      // useApi already showed a toast, so just exit early
+      return;
     } finally {
       setReadying(false);
     }
@@ -153,6 +195,33 @@ export function useBattleRoom(roomId, gameType) {
   const myId = me?.id || me?._id; // API /auth/me returns "id", not "_id"
   const myPlayer = room?.players?.find((p) => String(p.userId) === String(myId));
   const createdBy = room?.createdBy;
+
+  useEffect(() => {
+    if (!apiRef.current || !roomId || !room || !myId) return;
+    if (room.status !== "waiting") return;
+    const players = Array.isArray(room.players) ? room.players : [];
+    const isMember = players.some(
+      (player) => player && String(player.userId) === String(myId)
+    );
+    if (isMember) return;
+    if (players.length >= (room.maxPlayers || players.length)) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await apiRef.current.post(`/pvp/${roomId}/join`, {});
+        if (!cancelled) {
+          await fetchRoom();
+        }
+      } catch (err) {
+        console.error("Auto-join failed:", err?.__payload || err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId, room, myId, fetchRoom]);
 
   // Check isOwner by comparing with createdBy
   const isOwner = useMemo(() => {

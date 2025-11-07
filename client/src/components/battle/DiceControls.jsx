@@ -6,80 +6,122 @@ export default function DiceControls({
   room,
   metadata,
   rolling,
-  pendingValue,
-  dicePending,
-  currentUserId,
+  currentTurnLabel,
+  isMyTurn,
   myRollValue,
+  pendingIsMine,
   rollDisabled,
   rollDisabledBool,
+  pending,
+  revealCountdown,
   onRoll,
 }) {
-  const currentPlayer = currentUserId 
-    ? room.players?.find(p => String(p.userId) === String(currentUserId))
-    : null;
-  
-  const currentPlayerName = currentPlayer?.user?.username || String(currentUserId).slice(-6) || "-";
+  const resolvedPending = pending ?? metadata?.pending ?? null;
+  const dicePending = Boolean(resolvedPending);
+  const hasResult = typeof myRollValue === "number";
+  const isMyPending = Boolean(pendingIsMine);
+  const revealTarget = revealCountdown ?? resolvedPending?.revealAt;
+  const showRevealCountdown = Boolean(dicePending && revealTarget && !rolling && !hasResult);
 
-  const diceDisplay = rolling 
-    ? "?" 
-    : (pendingValue ?? (myRollValue === "-" ? "?" : myRollValue));
+  let displayRoll;
+  if (rolling) {
+    displayRoll = "🎲";
+  } else if (showRevealCountdown) {
+    displayRoll = (
+      <div className="flex flex-col items-center justify-center gap-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-white">
+        <span>Reveal</span>
+        <ServerCountdown
+          serverNow={room.serverNow}
+          target={revealTarget}
+          className="text-base font-bold text-amber-100"
+        />
+      </div>
+    );
+  } else if (hasResult) {
+    displayRoll = myRollValue;
+  } else {
+    displayRoll = "X";
+  }
 
-  const diceNumberColor = rolling ? "text-yellow-200" : "text-blue-800";
+  const isNumericRoll = typeof displayRoll === "number";
+  const isCountdown = showRevealCountdown;
+  const turnLabel = currentTurnLabel ? `${currentTurnLabel}${isMyTurn ? " (Bạn)" : ""}` : "-";
+
+  let statusLine = "Ready to roll";
+  if (rolling) statusLine = "Rolling...";
+  else if (isMyPending && dicePending) statusLine = "Awaiting reveal...";
+  else if (dicePending) statusLine = "Waiting for other players";
+  else if (hasResult) statusLine = "Roll locked";
+
+  const buttonLabel = rolling ? "Rolling..." : "Roll dice";
 
   return (
-    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-6">
-      {/* Current Turn Info */}
-      <div className="text-center mb-4">
-        <div className="text-gray-300 text-sm">Current Turn:</div>
-        <div className="text-white text-xl font-bold">{currentPlayerName}</div>
-      </div>
-
-      {/* Dice Display */}
-      <div className="flex flex-col items-center mb-6">
-        <div
-          className={`w-32 h-32 bg-white rounded-xl shadow-2xl flex items-center justify-center text-7xl font-bold border-4 border-gray-300 ${
-            rolling ? "animate-bounce" : ""
-          }`}
-        >
-          <span className={diceNumberColor}>{diceDisplay}</span>
-        </div>
-        <div className="mt-4 text-white text-2xl font-bold">
-          {rolling ? "Rolling..." : dicePending ? "Pending..." : "Ready!"}
-        </div>
-        
-        {dicePending && (
-          <div className="mt-2 text-sm text-gray-300 space-y-1">
-            <div>
-              Reveal in{" "}
-              <span className="text-yellow-400 font-semibold">
-                <ServerCountdown
-                  serverNow={room.serverNow}
-                  target={metadata?.pending?.revealAt}
-                />
-              </span>
-            </div>
-            <div>
-              Next turn in{" "}
-              <span className="text-cyan-400 font-semibold">
-                <ServerCountdown
-                  serverNow={room.serverNow}
-                  target={metadata?.pending?.advanceAt}
-                />
-              </span>
-            </div>
+    <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 px-5 py-6 shadow-lg shadow-black/30">
+      <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5" aria-hidden="true" />
+      <div className="relative flex flex-col gap-5">
+        <header className="flex items-start justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-white/50">Current turn</p>
+            <p className="text-lg font-semibold text-white">{turnLabel}</p>
           </div>
+          {dicePending && (
+            <span className="inline-flex items-center rounded-full border border-amber-400/40 bg-amber-500/15 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-amber-100">
+              Reveal pending
+            </span>
+          )}
+        </header>
+
+        <div className="flex flex-col items-center gap-3">
+          <div
+            className={`w-24 h-24 bg-gradient-to-br from-purple-600 to-pink-600 text-white rounded-2xl border-4 border-white/20 shadow-2xl flex items-center justify-center ${
+              isNumericRoll
+                ? "text-5xl font-extrabold"
+                : isCountdown
+                  ? ""
+                  : "text-2xl font-bold uppercase tracking-wide"
+            } ${rolling ? "animate-dice-roll-3d" : ""}`}
+            style={{ perspective: "800px" }}
+          >
+            {displayRoll}
+          </div>
+          <span className="text-sm font-semibold text-white/70">{statusLine}</span>
+
+          {dicePending && (
+            <div className="flex flex-col items-center gap-1 text-xs text-white/60">
+              <span className="flex items-center gap-2">
+                Reveal in
+                <ServerCountdown
+                  serverNow={room.serverNow}
+                  target={revealTarget}
+                  className="font-semibold text-amber-100"
+                />
+              </span>
+              <span className="flex items-center gap-2">
+                Next turn in
+                <ServerCountdown
+                  serverNow={room.serverNow}
+                  target={resolvedPending?.advanceAt}
+                  className="font-semibold text-sky-100"
+                />
+              </span>
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className="inline-flex w-full items-center justify-center rounded-2xl border border-indigo-400/30 bg-indigo-500/20 px-5 py-3 text-sm font-semibold text-white transition hover:border-indigo-300 hover:text-white disabled:cursor-not-allowed disabled:border-white/15 disabled:bg-white/10 disabled:text-white/50"
+          onClick={onRoll}
+          disabled={rollDisabledBool}
+          title={rollDisabled || "Roll your dice!"}
+        >
+          {buttonLabel}
+        </button>
+
+        {rollDisabledBool && !rolling && rollDisabled && (
+          <p className="text-xs text-white/50">{rollDisabled}</p>
         )}
       </div>
-
-      {/* Roll Button */}
-      <button
-        className="w-full px-8 py-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg font-bold text-xl transition-colors"
-        onClick={onRoll}
-        disabled={rollDisabledBool}
-        title={rollDisabled || "Roll your dice!"}
-      >
-        {rolling ? "ROLLING..." : "ROLL DICE"}
-      </button>
-    </div>
+    </section>
   );
 }

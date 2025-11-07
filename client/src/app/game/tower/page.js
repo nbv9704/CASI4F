@@ -1,321 +1,384 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { toast } from 'react-hot-toast'
-import useApi from '@/hooks/useApi'
-import { useUser } from '@/context/UserContext'
-import useExperienceSync from '@/hooks/useExperienceSync'
-import RequireAuth from '@/components/RequireAuth'
+import { useMemo, useState } from "react";
+import { toast } from "react-hot-toast";
 
-const MAX_LEVEL = 15
-const SUCCESS_PROB = 0.5
+import RequireAuth from "@/components/RequireAuth";
+import SoloCard from "@/components/solo/SoloCard";
+import SoloGameLayout from "@/components/solo/SoloGameLayout";
+import { useUser } from "@/context/UserContext";
+import useExperienceSync from "@/hooks/useExperienceSync";
+import useApi from "@/hooks/useApi";
+import { formatCoins } from "@/utils/format";
+
+const MAX_LEVEL = 15;
+const SUCCESS_PROB = 0.5;
 
 const LEVEL_MULTIPLIERS = [
   1, 1.5, 2, 2.5, 3, 4, 5, 6.5, 8, 10,
-  13, 16, 20, 30, 40, 50
-]
+  13, 16, 20, 30, 40, 50,
+];
 
 function TowerPage() {
-  const { post } = useApi()
-  const { balance, updateBalance } = useUser()
-  const syncExperience = useExperienceSync()
-  
-  const [betAmount, setBetAmount] = useState(10)
-  const [gameActive, setGameActive] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [currentLevel, setCurrentLevel] = useState(0)
-  const [gameEnded, setGameEnded] = useState(false)
-  const [wonLevel, setWonLevel] = useState(false)
+  const { post } = useApi();
+  const { balance, updateBalance } = useUser();
+  const syncExperience = useExperienceSync();
+
+  const [betAmount, setBetAmount] = useState(10);
+  const [gameActive, setGameActive] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [currentLevel, setCurrentLevel] = useState(0);
+  const [gameEnded, setGameEnded] = useState(false);
+  const [lastSummary, setLastSummary] = useState(null);
+
+  const currentMultiplier = LEVEL_MULTIPLIERS[currentLevel] ?? LEVEL_MULTIPLIERS[0];
+  const potentialWin = Math.floor(betAmount * currentMultiplier);
+
+  const headerStats = useMemo(
+    () => [
+      {
+        label: "Wallet balance",
+        value: `${formatCoins(balance)} coins`,
+      },
+      {
+        label: "Bet amount",
+        value: `${formatCoins(betAmount)} coins`,
+      },
+      {
+        label: "Level",
+        value: `${currentLevel}/${MAX_LEVEL}`,
+        hint: `${formatCoins(potentialWin)} coins at current step`,
+      },
+      {
+        label: "Status",
+        value: gameActive ? "In progress" : gameEnded ? "Finished" : "Idle",
+        hint: `${Math.round(SUCCESS_PROB * 100)}% ascend success`,
+      },
+    ],
+    [balance, betAmount, currentLevel, gameActive, gameEnded, potentialWin]
+  );
 
   const handleStart = async () => {
     if (betAmount <= 0) {
-      toast.error('Bet amount must be positive')
-      return
+      toast.error("Bet amount must be positive");
+      return;
     }
     if (balance < betAmount) {
-      toast.error('Insufficient balance')
-      return
+      toast.error("Insufficient balance");
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
     try {
-      await post('/game/tower/start', { betAmount })
-      
-      setGameActive(true)
-      setGameEnded(false)
-      setCurrentLevel(0)
-      setWonLevel(false)
-      toast.success('Game started! Climb the tower')
+      await post("/game/tower/start", { betAmount });
+      setGameActive(true);
+      setGameEnded(false);
+      setCurrentLevel(0);
+      setLastSummary(null);
+      toast.success("Game started! Climb the tower.");
     } catch (err) {
-      toast.error(err.message || 'Failed to start game')
+      toast.error(err.message || "Failed to start game");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleAscend = async () => {
-    if (!gameActive || currentLevel >= MAX_LEVEL) return
+    if (!gameActive || currentLevel >= MAX_LEVEL) return;
 
-    setLoading(true)
-    setWonLevel(false)
-    
+    setLoading(true);
     try {
-      const res = await post('/game/tower/ascend', {})
-      
-      // Check response type
+      const res = await post("/game/tower/ascend", {});
+
       if (res.win === false) {
-        // Busted! Game over, lost bet
-        setGameActive(false)
-        setGameEnded(true)
-        setWonLevel(false)
-        updateBalance(res.balance)
-        syncExperience(res)
-        toast.error(`💥 BUSTED at level ${res.bustedLevel || currentLevel + 1}! Lost ${betAmount} coins`)
+        setGameActive(false);
+        setGameEnded(true);
+        setCurrentLevel(res.level ?? currentLevel);
+        updateBalance(res.balance);
+        syncExperience(res);
+        setLastSummary({
+          status: "bust",
+          level: res.bustedLevel ?? currentLevel + 1,
+          multiplier: res.multiplier ?? LEVEL_MULTIPLIERS[currentLevel],
+          payout: -betAmount,
+        });
+        toast.error(`💥 Busted at level ${res.bustedLevel ?? currentLevel + 1}! Lost ${betAmount} coins.`);
       } else if (res.win === true) {
-        // Reached max level! Game over, won big
-        setGameActive(false)
-        setGameEnded(true)
-        setCurrentLevel(res.level)
-        updateBalance(res.balance)
-        syncExperience(res)
-        toast.success(`🎉 Reached level ${res.level}! Won ${res.payout} coins (${res.multiplier}x)`)
+        setGameActive(false);
+        setGameEnded(true);
+        setCurrentLevel(res.level);
+        updateBalance(res.balance);
+        syncExperience(res);
+        setLastSummary({
+          status: "max",
+          level: res.level,
+          multiplier: res.multiplier,
+          payout: res.payout,
+        });
+        toast.success(`🎉 Reached level ${res.level}! Won ${res.payout} coins (${res.multiplier}x).`);
       } else if (res.success === true) {
-        // Successfully climbed one level, game continues
-        setCurrentLevel(res.level)
-        setWonLevel(true)
-        toast.success(`Level ${res.level}! Multiplier: ${res.multiplier}x`, { duration: 2000 })
+        setCurrentLevel(res.level);
+        setLastSummary({
+          status: "progress",
+          level: res.level,
+          multiplier: res.multiplier,
+          payout: Math.floor(betAmount * res.multiplier),
+        });
+        toast.success(`Level ${res.level}! Multiplier: ${res.multiplier}x`, { duration: 2000 });
       }
     } catch (err) {
-      toast.error(err.message || 'Failed to ascend')
-      // If error, might be "no active game", reset state
-      setGameActive(false)
-      setGameEnded(true)
+      toast.error(err.message || "Failed to ascend");
+      setGameActive(false);
+      setGameEnded(true);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleCashout = async () => {
     if (!gameActive || currentLevel === 0) {
-      toast.error('No progress to cashout')
-      return
+      toast.error("No progress to cash out");
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await post('/game/tower/cashout', {})
-      
-  setGameActive(false)
-  setGameEnded(true)
-  updateBalance(res.balance)
-  syncExperience(res)
-      toast.success(`Cashed out at level ${res.level}! Won ${res.payout} coins (${res.multiplier}x)`)
+      const res = await post("/game/tower/cashout", {});
+      setGameActive(false);
+      setGameEnded(true);
+      setCurrentLevel(res.level);
+      updateBalance(res.balance);
+      syncExperience(res);
+      setLastSummary({
+        status: "cashout",
+        level: res.level,
+        multiplier: res.multiplier,
+        payout: res.payout,
+      });
+      toast.success(`Cashed out at level ${res.level}! Won ${res.payout} coins (${res.multiplier}x).`);
     } catch (err) {
-      toast.error(err.message || 'Failed to cashout')
+      toast.error(err.message || "Failed to cash out");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const currentMultiplier = LEVEL_MULTIPLIERS[currentLevel]
-  const potentialWin = Math.floor(betAmount * currentMultiplier)
+  const resetGameState = () => {
+    setGameActive(false);
+    setGameEnded(false);
+    setCurrentLevel(0);
+    setLastSummary(null);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold text-white mb-2">🏰 Tower</h1>
-          <p className="text-gray-300">Climb {MAX_LEVEL} levels with {SUCCESS_PROB * 100}% success rate per level!</p>
-          <div className="mt-4 text-xl text-yellow-400">Balance: {balance} coins</div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Panel - Controls */}
-          <div className="lg:col-span-1 space-y-4">
-            {/* Bet Amount */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-              <label className="block text-white font-semibold mb-2">Bet Amount:</label>
+    <SoloGameLayout
+      title="🏰 Tower"
+      subtitle={`Climb up to ${MAX_LEVEL} floors, banking a ${Math.round(SUCCESS_PROB * 100)}% success chance on each jump.`}
+      accent="Solo challenge"
+      stats={headerStats}
+    >
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        <div className="space-y-6">
+          <SoloCard className="space-y-6">
+            <div className="space-y-3">
+              <label className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50" htmlFor="tower-bet">
+                Bet amount
+              </label>
               <input
+                id="tower-bet"
                 type="number"
-                value={betAmount}
-                onChange={(e) => setBetAmount(+e.target.value)}
-                className="w-full px-4 py-3 rounded bg-white/20 text-white text-lg font-bold border-2 border-white/30"
                 min="1"
+                value={betAmount}
+                onChange={(event) => setBetAmount(+event.target.value)}
+                className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-lg font-semibold text-white outline-none transition focus:border-violet-400 focus:bg-black/60 focus:text-white disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={gameActive || loading}
               />
-              {!gameActive && (
+            </div>
+
+            <div className="grid gap-3 text-sm text-white/70">
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <span className="uppercase tracking-[0.25em]">Level</span>
+                <span className="text-white font-semibold">{currentLevel} / {MAX_LEVEL}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <span className="uppercase tracking-[0.25em]">Multiplier</span>
+                <span className="text-amber-200 font-semibold">{currentMultiplier}x</span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <span className="uppercase tracking-[0.25em]">Potential win</span>
+                <span className="text-emerald-200 font-semibold">{formatCoins(potentialWin)} coins</span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <span className="uppercase tracking-[0.25em]">Success rate</span>
+                <span className="text-sky-200 font-semibold">{Math.round(SUCCESS_PROB * 100)}%</span>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {!gameActive ? (
                 <button
+                  type="button"
                   onClick={handleStart}
                   disabled={loading}
-                  className="w-full mt-3 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg font-bold text-lg"
+                  className="inline-flex items-center justify-center rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-400 via-emerald-500 to-sky-500 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-gray-900 shadow-lg shadow-emerald-500/25 transition hover:shadow-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
                 >
-                  {loading ? 'Starting...' : 'START GAME'}
+                  {loading ? "Starting..." : "Start game"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleAscend}
+                  disabled={loading || currentLevel >= MAX_LEVEL}
+                  className="inline-flex items-center justify-center rounded-2xl border border-sky-400/40 bg-sky-500/20 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:border-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? "Resolving" : currentLevel >= MAX_LEVEL ? "Max level" : "Ascend"}
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={handleCashout}
+                disabled={!gameActive || currentLevel === 0 || loading}
+                className="inline-flex items-center justify-center rounded-2xl border border-amber-400/40 bg-amber-500/20 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:border-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? "Processing" : "Cash out"}
+              </button>
+
+              <button
+                type="button"
+                onClick={resetGameState}
+                disabled={gameActive}
+                className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Reset
+              </button>
             </div>
+          </SoloCard>
 
-            {/* Game Status */}
-            {gameActive && (
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Current Level:</span>
-                    <span className="text-white font-bold text-xl">{currentLevel} / {MAX_LEVEL}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Multiplier:</span>
-                    <span className="text-yellow-400 font-bold text-2xl">{currentMultiplier}x</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Potential Win:</span>
-                    <span className="text-green-400 font-bold text-xl">
-                      {potentialWin} coins
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Success Rate:</span>
-                    <span className="text-blue-400 font-bold">{SUCCESS_PROB * 100}%</span>
-                  </div>
-                </div>
-                
-                <div className="mt-4 space-y-2">
-                  <button
-                    onClick={handleAscend}
-                    disabled={loading || currentLevel >= MAX_LEVEL}
-                    className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg font-bold text-lg"
-                  >
-                    {loading ? '...' : currentLevel >= MAX_LEVEL ? 'MAX LEVEL' : '⬆️ ASCEND'}
-                  </button>
-                  
-                  {currentLevel > 0 && (
-                    <button
-                      onClick={handleCashout}
-                      disabled={loading}
-                      className="w-full px-6 py-3 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white rounded-lg font-bold text-lg"
-                    >
-                      {loading ? 'Processing...' : '💰 CASHOUT'}
-                    </button>
-                  )}
-                </div>
+          {lastSummary ? (
+            <SoloCard className="space-y-4">
+              <header className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Last outcome</p>
+                <h2 className="text-lg font-semibold text-white">
+                  {lastSummary.status === "bust"
+                    ? "Busted"
+                    : lastSummary.status === "cashout"
+                    ? "Cashed out"
+                    : lastSummary.status === "max"
+                    ? "Tower conquered"
+                    : "Progress update"}
+                </h2>
+              </header>
+              <div className={`rounded-3xl border px-6 py-6 text-center shadow-inner ${
+                lastSummary.status === "bust"
+                  ? "border-rose-400/40 bg-rose-500/20"
+                  : "border-emerald-400/40 bg-emerald-500/20"
+              }`}>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-white/70">
+                  Level {lastSummary.level}
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  Multiplier {lastSummary.multiplier ?? LEVEL_MULTIPLIERS[lastSummary.level] ?? 1}x
+                </p>
+                <p className="mt-3 text-2xl font-semibold text-white">
+                  {lastSummary.payout >= 0 ? "+" : ""}{formatCoins(lastSummary.payout)} coins
+                </p>
               </div>
-            )}
+            </SoloCard>
+          ) : null}
 
-            {/* Multiplier Table */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 max-h-96 overflow-y-auto">
-              <h3 className="text-white font-bold mb-3">Level Multipliers:</h3>
-              <div className="space-y-1 text-sm">
-                {LEVEL_MULTIPLIERS.map((mult, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex justify-between items-center p-2 rounded ${
-                      currentLevel === idx && gameActive
-                        ? 'bg-yellow-500/30 ring-2 ring-yellow-400'
-                        : 'bg-white/5'
-                    }`}
-                  >
-                    <span className="text-gray-300">Level {idx}:</span>
-                    <span className={`font-bold ${currentLevel === idx && gameActive ? 'text-yellow-400' : 'text-white'}`}>
-                      {mult}x
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Panel - Tower Visualization */}
-          <div className="lg:col-span-2 bg-white/10 backdrop-blur-sm rounded-lg p-6">
-            <div className="flex flex-col-reverse gap-2">
-              {LEVEL_MULTIPLIERS.map((mult, idx) => {
-                const isCurrentLevel = currentLevel === idx && gameActive
-                const isPassed = currentLevel > idx && gameActive
-                const isNext = currentLevel === idx - 1 && gameActive
-                
+          <SoloCard className="space-y-4">
+            <header className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Level multipliers</p>
+              <h2 className="text-lg font-semibold text-white">Plan your climb</h2>
+            </header>
+            <div className="grid max-h-72 gap-2 overflow-y-auto pr-2 text-sm text-white/70">
+              {LEVEL_MULTIPLIERS.map((multiplier, level) => {
+                const active = gameActive && currentLevel === level;
+                const cleared = gameActive && currentLevel > level;
                 return (
                   <div
-                    key={idx}
-                    className={`relative p-4 rounded-lg border-2 transition-all duration-300 ${
-                      isCurrentLevel
-                        ? 'bg-yellow-500/30 border-yellow-400 scale-105 shadow-lg shadow-yellow-400/50'
-                        : isPassed
-                        ? 'bg-green-500/20 border-green-400'
-                        : isNext
-                        ? 'bg-blue-500/20 border-blue-400 animate-pulse'
-                        : 'bg-white/5 border-white/20'
+                    key={`level-${level}`}
+                    className={`flex items-center justify-between rounded-2xl border px-4 py-3 transition ${
+                      active
+                        ? "border-amber-400/50 bg-amber-500/20 shadow-lg shadow-amber-500/20"
+                        : cleared
+                        ? "border-emerald-400/40 bg-emerald-500/15"
+                        : "border-white/10 bg-white/5"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className={`text-2xl font-bold ${
-                          isCurrentLevel ? 'text-yellow-400' : isPassed ? 'text-green-400' : 'text-white'
-                        }`}>
-                          Level {idx}
-                        </span>
-                        {isPassed && <span className="text-xl">✅</span>}
-                        {isCurrentLevel && <span className="text-xl animate-bounce">👤</span>}
-                      </div>
-                      
-                      <div className="text-right">
-                        <div className={`text-xl font-bold ${
-                          isCurrentLevel ? 'text-yellow-400' : isPassed ? 'text-green-400' : 'text-white'
-                        }`}>
-                          {mult}x
-                        </div>
-                        {(isCurrentLevel || isPassed) && (
-                          <div className="text-sm text-gray-300">
-                            {Math.floor(betAmount * mult)} coins
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {idx === MAX_LEVEL && (
-                      <div className="absolute -top-8 left-0 right-0 text-center text-2xl">
-                        👑
-                      </div>
-                    )}
+                    <span className="font-semibold text-white">Level {level}</span>
+                    <span className="text-amber-200 font-semibold">{multiplier}x</span>
                   </div>
-                )
+                );
               })}
             </div>
+          </SoloCard>
+        </div>
 
-            {/* Game End Message */}
-            {gameEnded && (
-              <div className="mt-6 text-center">
-                <button
-                  onClick={() => {
-                    // Reset all game state completely
-                    setGameActive(false)
-                    setGameEnded(false)
-                    setCurrentLevel(0)
-                    setWonLevel(false)
-                    setResult(null)
-                  }}
-                  className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-lg"
+        <SoloCard className="flex flex-col justify-between space-y-6">
+          <header className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Tower map</p>
+            <h2 className="text-lg font-semibold text-white">Visualize your climb</h2>
+          </header>
+          <div className="flex flex-col-reverse gap-3">
+            {LEVEL_MULTIPLIERS.map((multiplier, level) => {
+              const active = gameActive && currentLevel === level;
+              const cleared = gameActive && currentLevel > level;
+              const next = gameActive && currentLevel === level - 1;
+              return (
+                <div
+                  key={`tower-level-${level}`}
+                  className={`relative overflow-hidden rounded-3xl border px-5 py-4 transition ${
+                    active
+                      ? "border-amber-400/60 bg-amber-500/20 shadow-lg shadow-amber-500/20"
+                      : cleared
+                      ? "border-emerald-400/40 bg-emerald-500/15"
+                      : next
+                      ? "border-sky-400/40 bg-sky-500/15"
+                      : "border-white/10 bg-white/5"
+                  }`}
                 >
-                  Play Again
-                </button>
-              </div>
-            )}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg font-semibold text-white">Level {level}</span>
+                      {cleared ? <span aria-hidden="true">✅</span> : null}
+                      {active ? <span className="animate-bounce" aria-hidden="true">🧗</span> : null}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold text-amber-200">{multiplier}x</p>
+                      {(active || cleared) ? (
+                        <p className="text-xs text-white/60">{formatCoins(Math.floor(betAmount * multiplier))} coins</p>
+                      ) : null}
+                    </div>
+                  </div>
+                  {level === MAX_LEVEL ? (
+                    <div className="absolute -top-6 right-6 text-2xl" aria-hidden="true">
+                      👑
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
-        </div>
-
-        {/* Instructions */}
-        <div className="mt-6 bg-white/10 backdrop-blur-sm rounded-lg p-4 text-sm text-gray-300">
-          <h3 className="text-white font-bold mb-2">How to Play:</h3>
-          <ul className="list-disc list-inside space-y-1">
-            <li>Set your bet amount and click START GAME</li>
-            <li>Click ASCEND to climb to the next level ({SUCCESS_PROB * 100}% success rate)</li>
-            <li>Each successful ascend increases your multiplier</li>
-            <li>Cashout anytime to secure your winnings</li>
-            <li>Fail an ascend and you lose your bet!</li>
-            <li>Reach level {MAX_LEVEL} for {LEVEL_MULTIPLIERS[MAX_LEVEL]}x multiplier!</li>
-          </ul>
-        </div>
+        </SoloCard>
       </div>
-    </div>
-  )
+
+      <SoloCard className="mt-6 space-y-3 text-sm text-white/70">
+        <header className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">How to play</p>
+          <h2 className="text-lg font-semibold text-white">Climb carefully, bank wisely</h2>
+        </header>
+        <ul className="space-y-2">
+          <li>Set your bet and start to initiate a new climb.</li>
+          <li>Each ascend has a {Math.round(SUCCESS_PROB * 100)}% chance to succeed and boosts your multiplier.</li>
+          <li>Cash out anytime after clearing at least one level to secure your winnings.</li>
+          <li>Fail an ascend and the tower collapses — your bet is lost.</li>
+          <li>Reach floor {MAX_LEVEL} to capture the {LEVEL_MULTIPLIERS[MAX_LEVEL]}x crown payout.</li>
+        </ul>
+      </SoloCard>
+    </SoloGameLayout>
+  );
 }
 
-export default RequireAuth(TowerPage)
+export default RequireAuth(TowerPage);

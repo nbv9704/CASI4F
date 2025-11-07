@@ -702,6 +702,7 @@ const translations = {
           waiting: "Join room",
           active: "In progress",
           full: "Full",
+          rejoin: "Resume match",
         },
         emptyTitle: "No rooms available yet",
         emptyDescription:
@@ -1407,6 +1408,7 @@ const translations = {
           waiting: "Vào phòng",
           active: "Đang chơi",
           full: "Đã đầy",
+          rejoin: "Quay lại phòng",
         },
         emptyTitle: "Chưa có phòng nào",
         emptyDescription: "Hãy là người mở phòng đầu tiên và mời đối thủ.",

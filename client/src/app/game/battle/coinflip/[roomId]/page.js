@@ -207,7 +207,7 @@ export default function CoinflipRoomPage({ params }) {
                 <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-5 text-sm text-white/70">
                   <p className="mb-2 text-base font-semibold text-white">Round complete</p>
                   <p className="mb-2">
-                    Need to double-check the flip? Use the fairness control in the header to inspect the server seed, reveal signature, and the commit that locked each player\'s side before reveal.
+                    Need to double-check the flip? Use the fairness control in the header to inspect the server seed, reveal signature, and the commit that locked each player&apos;s side before reveal.
                   </p>
                   <p>
                     You can also open this match from battle history later on to review the same proof and replay the animation.

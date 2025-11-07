@@ -194,7 +194,7 @@ function MinesPage() {
         hint: gameActive && picks.length > 0 ? `Potential ${formatCoins(potentialWin)} coins` : undefined,
       },
     ];
-  }, [balance, gameActive, gameEnded, picks.length, potentialWin]);
+  }, [balance, currentMultiplier, gameActive, gameEnded, picks.length, potentialWin]);
 
   return (
     <SoloGameLayout

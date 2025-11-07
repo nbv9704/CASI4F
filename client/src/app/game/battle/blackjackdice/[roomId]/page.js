@@ -250,7 +250,7 @@ export default function BlackjackDiceRoomPage({ params }) {
                     Curious how the dealer drew? Open the fairness control in the header to review the seed reveal, shuffle order, and every die that was queued before each reveal step.
                   </p>
                   <p>
-                    You\'ll find the same proof attached to this battle in history, so auditing future disputes stays quick and transparent.
+                    You&apos;ll find the same proof attached to this battle in history, so auditing future disputes stays quick and transparent.
                   </p>
                 </div>
               </div>

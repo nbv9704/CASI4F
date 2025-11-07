@@ -12,6 +12,7 @@ const { makeServerSeed, sha256, coinflip, hmacHex } = require('../utils/fair');
 const { startDicePoker } = require('../controllers/pvp/dicePokerController');
 const { startBlackjackDice, hitBlackjackDice, standBlackjackDice } = require('../controllers/pvp/blackjackDiceController');
 const { logBalanceChange } = require('../utils/balanceLog');
+const { recordGameHistory } = require('../utils/history');
 const asyncHandler = require('../middleware/asyncHandler');
 const validateRequest = require('../middleware/validateRequest');
 
@@ -46,12 +47,14 @@ router.use(pvpActionLimiter);
 const ALPHANUM = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 function generateShortId(len = 5) {
   let out = '';
-  for (let i = 0; i < len; i++) out += ALPHANUM.charAt(Math.floor(Math.random() * ALPHANUM.length));
+  for (let i = 0; i < len; i += 1) {
+    out += ALPHANUM.charAt(Math.floor(Math.random() * ALPHANUM.length));
+  }
   return out;
 }
 async function generateUniqueRoomId() {
   let id;
-  for (let i = 0; i < 200; i++) {
+  for (let i = 0; i < 200; i += 1) {
     id = generateShortId(5);
     const exists = await PvpRoom.exists({ roomId: id, status: { $in: ['waiting', 'active'] } });
     if (!exists) return id;
@@ -103,6 +106,30 @@ function markIdem(md, type, id, cap = 100) {
   }
 }
 
+async function recordBattleResults({ session, game, betAmount, results }) {
+  if (!Array.isArray(results) || !results.length) {
+    return;
+  }
+
+  for (const entry of results) {
+    if (!entry || !entry.userId) continue;
+    const userId = String(entry.userId);
+    const payout = Number(entry.payout ?? 0);
+    const outcome = entry.outcome || 'lose';
+
+    await recordGameHistory(
+      {
+        userId,
+        game,
+        betAmount,
+        outcome,
+        payout,
+      },
+      session
+    );
+  }
+}
+
 // ---------- CONSTANTS ----------
 router.get('/constants', (req, res) => {
   return res.json({
@@ -117,7 +144,44 @@ router.get('/rooms', asyncHandler(async (req, res) => {
   const q = { status: { $in: ['waiting', 'active'] } };
   if (req.query.game) q.game = String(req.query.game);
   const rooms = await PvpRoom.find(q).sort({ createdAt: -1 }).limit(200).lean();
-  const out = rooms.map((r) => sanitizeRoomWithNow(r));
+
+  const userIds = new Set();
+  for (const room of rooms) {
+    const list = Array.isArray(room?.players) ? room.players : [];
+    for (const player of list) {
+      if (player?.userId) {
+        userIds.add(String(player.userId));
+      }
+    }
+  }
+
+  let usersById = new Map();
+  if (userIds.size > 0) {
+    const users = await User.find({ _id: { $in: Array.from(userIds) } })
+      .select('username name displayName avatar avatarUrl')
+      .lean();
+    usersById = new Map(users.map((u) => [String(u._id), u]));
+  }
+
+  const out = rooms.map((room) => {
+    const decoratedPlayers = (room.players || []).map((player) => {
+      if (!player?.userId) return player;
+      const user = usersById.get(String(player.userId));
+      if (!user) return { ...player, user: null };
+      return {
+        ...player,
+        user: {
+          id: String(user._id),
+          username: user.username || user.name || null,
+          displayName: user.displayName || user.username || user.name || null,
+          avatar: user.avatar || user.avatarUrl || null,
+        },
+      };
+    });
+
+    return sanitizeRoomWithNow({ ...room, players: decoratedPlayers });
+  });
+
   res.json(out);
 }));
 
@@ -425,6 +489,32 @@ router.post(
               }
             }
 
+            const participantIds = rDoc.players.map((p) => String(p.userId));
+            if (m2.pendingCoin.winnerUserId) {
+              const winnerId = String(m2.pendingCoin.winnerUserId);
+              const results = [
+                { userId: winnerId, outcome: 'win', payout: pot },
+                ...participantIds
+                  .filter((id) => id !== winnerId)
+                  .map((id) => ({ userId: id, outcome: 'lose', payout: 0 })),
+              ];
+
+              await recordBattleResults({
+                session,
+                game: 'coinflip_battle',
+                betAmount: bet2,
+                results,
+              });
+            } else {
+              const results = participantIds.map((id) => ({ userId: id, outcome: 'draw', payout: bet2 }));
+              await recordBattleResults({
+                session,
+                game: 'coinflip_battle',
+                betAmount: bet2,
+                results,
+              });
+            }
+
             rDoc.status = 'finished';
             rDoc.winnerUserId = m2.pendingCoin.winnerUserId || null;
             m2.flipResult = m2.pendingCoin.result;
@@ -509,6 +599,21 @@ router.post(
               );
             }
           }
+
+          const playerIds = room.players.map((p) => String(p.userId));
+          const winnerSet = new Set((winners || []).map((id) => String(id)));
+          const results = playerIds.map((id) => ({
+            userId: id,
+            outcome: winnerSet.has(id) ? 'win' : 'lose',
+            payout: winnerSet.has(id) ? winnerShare : 0,
+          }));
+
+          await recordBattleResults({
+            session,
+            game: 'dicepoker_battle',
+            betAmount: bet,
+            results,
+          });
         });
       } finally {
         await session.endSession();
@@ -669,6 +774,18 @@ router.post(
                 await logBalanceChange({ userId: wid, roomId: rDoc.roomId, delta: share, reason: 'payout_dice', balanceAfter: upd?.balance }, session);
               }
 
+              const results = order2.map((id) => ({
+                userId: id,
+                outcome: winners.includes(id) ? 'win' : 'lose',
+                payout: winners.includes(id) ? share : 0,
+              }));
+              await recordBattleResults({
+                session,
+                game: 'dice_battle',
+                betAmount: bet2,
+                results,
+              });
+
               rDoc.status = 'finished';
               rDoc.winnerUserId = null;
               m2.serverSeedReveal = m2.serverSeed;
@@ -729,10 +846,11 @@ router.post(
       room.status = 'finished';
       
       // Pay winners
-      const winners = room.metadata.blackjackDice.winners || [];
+      const winners = (room.metadata.blackjackDice.winners || []).map((id) => String(id));
       const bet = Number(room.betAmount || 0);
       const pot = bet * room.players.length;
       const winnerShare = winners.length > 0 ? Math.floor(pot / winners.length) : 0;
+      const participantIds = room.players.map((p) => String(p.userId));
 
       const session = await mongoose.startSession();
       try {
@@ -750,6 +868,20 @@ router.post(
               );
             }
           }
+
+          const winnerSet = new Set(winners);
+          const results = participantIds.map((id) => ({
+            userId: id,
+            outcome: winnerSet.size ? (winnerSet.has(id) ? 'win' : 'lose') : 'lose',
+            payout: winnerSet.has(id) ? winnerShare : 0,
+          }));
+
+          await recordBattleResults({
+            session,
+            game: 'blackjackdice_battle',
+            betAmount: bet,
+            results,
+          });
         });
       } finally {
         await session.endSession();
@@ -791,10 +923,11 @@ router.post(
       room.status = 'finished';
       
       // Pay winners
-      const winners = room.metadata.blackjackDice.winners || [];
+      const winners = (room.metadata.blackjackDice.winners || []).map((id) => String(id));
       const bet = Number(room.betAmount || 0);
       const pot = bet * room.players.length;
       const winnerShare = winners.length > 0 ? Math.floor(pot / winners.length) : 0;
+      const participantIds = room.players.map((p) => String(p.userId));
 
       const session = await mongoose.startSession();
       try {
@@ -812,6 +945,20 @@ router.post(
               );
             }
           }
+
+          const winnerSet = new Set(winners);
+          const results = participantIds.map((id) => ({
+            userId: id,
+            outcome: winnerSet.size ? (winnerSet.has(id) ? 'win' : 'lose') : 'lose',
+            payout: winnerSet.has(id) ? winnerShare : 0,
+          }));
+
+          await recordBattleResults({
+            session,
+            game: 'blackjackdice_battle',
+            betAmount: bet,
+            results,
+          });
         });
       } finally {
         await session.endSession();
@@ -892,12 +1039,28 @@ router.get(
     if (doc.status !== 'finished') throw new AppError(ErrorCodes.PVP_ROOM_NOT_FINISHED, 409, 'Phòng chưa kết thúc');
 
     const md = doc.metadata || {};
+    const serverSeedHash = md.serverSeedHash
+      || md?.dice?.serverSeedHash
+      || md?.dicePoker?.serverSeedHash
+      || md?.blackjackDice?.serverSeedHash
+      || null;
+    const serverSeedReveal = md.serverSeedReveal
+      || md?.dice?.serverSeedReveal
+      || md?.dicePoker?.serverSeedReveal
+      || md?.blackjackDice?.serverSeedReveal
+      || null;
+    const clientSeed = md.clientSeed
+      || md?.dice?.clientSeed
+      || md?.dicePoker?.clientSeed
+      || md?.blackjackDice?.clientSeed
+      || doc.roomId;
+
     const base = {
       game: doc.game,
-      serverSeedHash: md.serverSeedHash || null,
-      serverSeedReveal: md.serverSeedReveal || null,
-      clientSeed: md.clientSeed || doc.roomId,
-      nonceStart: typeof md.nonce === 'number' && Array.isArray(md?.dice?.rolls) ? md.nonce - md.dice.rolls.length : typeof md.nonce === 'number' ? md.nonce : 0,
+      serverSeedHash,
+      serverSeedReveal,
+      clientSeed,
+      nonceStart: typeof md.nonce === 'number' ? md.nonce : null,
       serverNow: Date.now(),
     };
 
@@ -916,7 +1079,7 @@ router.get(
     if (doc.game === 'dice') {
       const sides = Number(md?.dice?.sides || 6);
       const rolls = Array.isArray(md?.dice?.rolls) ? md.dice.rolls : [];
-      const nonceStart = base.nonceStart || 0;
+      const nonceStart = typeof md.nonce === 'number' ? md.nonce - rolls.length : 0;
       const enriched = rolls.map((r, i) => ({
         userId: String(r.userId),
         value: r.value,
@@ -926,6 +1089,68 @@ router.get(
         ...base,
         dice: { sides, rolls: enriched },
       });
+    }
+
+    if (doc.game === 'dicepoker') {
+      const dp = md.dicePoker || {};
+      const rolls = Array.isArray(dp.rolls) ? dp.rolls : [];
+      const log = Array.isArray(dp.log) ? dp.log : [];
+      return res.json({
+        ...base,
+        dicepoker: {
+          rolls: rolls.map((entry) => ({
+            userId: String(entry.userId),
+            dice: entry.dice,
+            hand: entry.hand,
+            multiplier: entry.multiplier,
+            sum: entry.sum,
+          })),
+          winners: Array.isArray(dp.winners) ? dp.winners.map((id) => String(id)) : [],
+          log: log.map((entry, index) => ({
+            userId: String(entry.userId),
+            nonce: entry.nonce,
+            value: entry.value,
+            action: entry.action,
+            dieIndex: entry.dieIndex ?? null,
+            order: entry.order ?? index,
+          })),
+          nonceUsed: dp.nonce ?? null,
+        },
+      });
+    }
+
+    if (doc.game === 'blackjackdice') {
+      const bjd = md.blackjackDice || {};
+      const players = Array.isArray(bjd.players) ? bjd.players : [];
+      const log = Array.isArray(bjd.log) ? bjd.log : [];
+      return res.json({
+        ...base,
+        blackjackdice: {
+          players: players.map((player) => ({
+            userId: String(player.userId),
+            dice: player.dice,
+            sum: player.sum,
+            busted: !!player.busted,
+            standing: !!player.standing,
+          })),
+          winners: Array.isArray(bjd.winners) ? bjd.winners.map((id) => String(id)) : [],
+          phase: bjd.phase || null,
+          log: log.map((entry, index) => ({
+            userId: String(entry.userId),
+            nonce: entry.nonce,
+            value: entry.value,
+            action: entry.action,
+            order: entry.order ?? index,
+          })),
+          startedAt: bjd.startedAt || null,
+          finishedAt: bjd.finishedAt || null,
+          nonceUsed: bjd.nonce ?? null,
+        },
+      });
+    }
+
+    if (doc.game === 'dice') {
+      base.nonceStart = typeof md.nonce === 'number' ? md.nonce - (Array.isArray(md?.dice?.rolls) ? md.dice.rolls.length : 0) : null;
     }
 
     return res.json(base);

@@ -12,13 +12,24 @@ async function startBlackjackDice(io, room) {
   console.log(`[START BLACKJACK] serverSeed=${serverSeed.substring(0, 16)}..., clientSeed=${clientSeed}, startNonce=${nonceCounter}`);
 
   const players = [];
+  const log = [];
   
   // Deal to each player (2 dice each)
   for (const player of room.players) {
-    const dice = [
-      provablyFairDiceRoll(serverSeed, clientSeed, nonceCounter++, 6),
-      provablyFairDiceRoll(serverSeed, clientSeed, nonceCounter++, 6)
-    ];
+    const dice = [];
+
+    for (let i = 0; i < 2; i += 1) {
+      const nonceUsed = nonceCounter;
+      const roll = provablyFairDiceRoll(serverSeed, clientSeed, nonceCounter++, 6);
+      dice.push(roll);
+      log.push({
+        userId: String(player.userId),
+        action: 'deal',
+        order: log.length,
+        nonce: nonceUsed,
+        value: roll,
+      });
+    }
     
     players.push({
       userId: player.userId,
@@ -36,7 +47,14 @@ async function startBlackjackDice(io, room) {
     clientSeed,
     nonce: nonceCounter,
     phase: 'playing', // playing, finished
+    log,
+    startedAt: Date.now(),
   };
+
+  room.metadata.serverSeed = serverSeed;
+  room.metadata.serverSeedHash = room.metadata.blackjackDice.serverSeedHash;
+  room.metadata.clientSeed = clientSeed;
+  room.metadata.nonce = nonceCounter;
 
   return room;
 }
@@ -58,6 +76,17 @@ async function hitBlackjackDice(io, room, userId) {
   console.log(`[HIT] userId=${userId}, nonce=${currentNonce}, die=${newDie}`);
   playerData.dice.push(newDie);
   playerData.sum = playerData.dice.reduce((a, b) => a + b, 0);
+
+  const log = Array.isArray(bjd.log) ? bjd.log : [];
+  log.push({
+    userId: String(userId),
+    action: 'hit',
+    order: log.length,
+    nonce: currentNonce,
+    value: newDie,
+  });
+  bjd.log = log;
+  room.metadata.nonce = bjd.nonce;
 
   // Check bust
   if (playerData.sum > 21) {
@@ -122,6 +151,9 @@ function determineWinners(room) {
 
   bjd.winners = winners;
   bjd.phase = 'finished';
+  bjd.finishedAt = Date.now();
+  bjd.serverSeedReveal = bjd.serverSeed;
+  room.metadata.serverSeedReveal = room.metadata.serverSeed;
   room.winnerUserId = winners.length === 1 ? winners[0] : null;
   
   console.log(`[GAME FINISHED] maxSum=${maxSum}, winners=${winners.join(', ')}`);

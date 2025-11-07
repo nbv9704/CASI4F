@@ -81,12 +81,22 @@ async function startDicePoker(io, room) {
   let nonceCounter = 0;
 
   const rolls = [];
+  const log = [];
   
   for (const player of room.players) {
     const dice = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 5; i += 1) {
+      const nonceUsed = nonceCounter;
       const roll = provablyFairDiceRoll(serverSeed, clientSeed, nonceCounter++, 6);
       dice.push(roll);
+      log.push({
+        userId: String(player.userId),
+        action: 'deal',
+        order: log.length,
+        nonce: nonceUsed,
+        value: roll,
+        dieIndex: i,
+      });
     }
     
     const handResult = evaluateHand(dice);
@@ -139,13 +149,23 @@ async function startDicePoker(io, room) {
     );
   }
 
+  const serverSeedHash = sha256(serverSeed);
   room.metadata.dicePoker = {
     rolls,
     serverSeed,
-    serverSeedHash: sha256(serverSeed),
+    serverSeedHash,
     clientSeed,
     nonce: nonceCounter,
+    log,
+    finishedAt: Date.now(),
+    serverSeedReveal: serverSeed,
   };
+
+  room.metadata.serverSeed = serverSeed;
+  room.metadata.serverSeedHash = serverSeedHash;
+  room.metadata.clientSeed = clientSeed;
+  room.metadata.nonce = nonceCounter;
+  room.metadata.serverSeedReveal = serverSeed;
 
   room.winnerUserId = winners.length === 1 ? winners[0].userId : null;
   room.metadata.dicePoker.winners = winners.map(w => String(w.userId));

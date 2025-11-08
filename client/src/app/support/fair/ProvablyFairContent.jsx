@@ -851,7 +851,7 @@ export default function ProvablyFairContent() {
           <div className='overflow-hidden rounded-2xl border border-white/10'>
             <table className='min-w-full divide-y divide-white/10 text-sm'>
               <thead>
-                <tr className='bg-white/5 text-left text-xs uppercase tracking-[0.25em] text-slate-400'>
+                <tr className='bg-white/5 text-left text-xs uppercase tracking-[0.25em] text-slate-200'>
                   <th scope='col' className='px-4 py-3'>{tableHeaders.type}</th>
                   <th scope='col' className='px-4 py-3'>{tableHeaders.value}</th>
                   <th scope='col' className='px-4 py-3'>{tableHeaders.actions}</th>
@@ -891,10 +891,10 @@ export default function ProvablyFairContent() {
 
           <p className='rounded-2xl border border-dashed border-white/20 bg-white/5 px-5 py-4 text-xs text-slate-300/80'>{seedsHint}</p>
 
-          <div className='grid gap-4 text-[11px] text-slate-400 sm:grid-cols-3'>
+          <div className='grid gap-4 text-[11px] text-slate-300 sm:grid-cols-3'>
             {metaItems.map((item) => (
               <div key={item.key} className='space-y-1'>
-                <div className='uppercase tracking-[0.35em] text-slate-500'>{item.label}</div>
+                <div className='uppercase tracking-[0.35em] text-slate-200'>{item.label}</div>
                 <div className='font-mono text-xs text-slate-200'>{formatDateTime(item.value)}</div>
               </div>
             ))}

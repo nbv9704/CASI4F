@@ -142,7 +142,7 @@ export default function Navbar() {
                 <span className='text-base font-semibold uppercase tracking-[0.55em] text-slate-100 transition duration-300 group-hover:text-white'>
                   CASI4F
                 </span>
-                <span className='text-[10px] font-medium uppercase tracking-[0.38em] text-slate-500 transition duration-300 group-hover:text-slate-300'>
+                <span className='text-[10px] font-medium uppercase tracking-[0.38em] text-slate-300 transition duration-300 group-hover:text-white'>
                   Online Casino
                 </span>
               </div>
@@ -242,7 +242,7 @@ export default function Navbar() {
       )}
 
       {user && (
-        <aside
+        <div
           id='nav-hamburger-panel'
           ref={panelRef}
           role='dialog'
@@ -251,6 +251,7 @@ export default function Navbar() {
           className={`fixed top-0 right-0 z-[60] flex h-full w-64 flex-col border-l border-slate-800/60 bg-slate-950/95 text-white shadow-2xl outline-none transition-transform duration-300 ease-out ${
             hamburgerOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
           }`}
+          tabIndex={-1}
         >
           <div className='flex-shrink-0 border-b border-slate-700/70 p-5'>
             <div className='mb-3 flex items-center justify-between'>
@@ -374,7 +375,7 @@ export default function Navbar() {
               <span className='transition duration-200'>{t('navbar.menu.logout')}</span>
             </button>
           </div>
-        </aside>
+        </div>
       )}
     </>
   )

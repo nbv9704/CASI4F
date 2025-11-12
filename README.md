@@ -1,4 +1,4 @@
-# 🎲 4FUNBET — Game & Battle Platform
+# 🎲 CASI4F — Game & Battle Platform
 
 **Version 1.0** — November 8, 2025
 
@@ -82,7 +82,7 @@ A diverse mini-game entertainment platform (solo & battle) built with Next.js (c
 
 ```bash
 # Clone repository
-git clone https://github.com/nbv9704/4FUNBET.git
+git clone https://github.com/nbv9704/CASI4F.git
 cd cado4fun
 
 # Install client dependencies
@@ -99,7 +99,7 @@ npm install
 **Server** (`server/.env`):
 
 ```env
-MONGO_URI=mongodb://localhost:27017/4funbet
+MONGO_URI=mongodb://localhost:27017/casi4f
 JWT_SECRET=your_secret_key_here
 SOCKET_SECRET=your_socket_secret
 NODE_ENV=development
@@ -287,7 +287,7 @@ All contributions are welcome! Follow these steps:
 **Ngô Bảo Việt**
 
 - GitHub: [@nbv9704](https://github.com/nbv9704)
-- Repository: [4FUNBET](https://github.com/nbv9704/4FUNBET)
+- Repository: [CASI4F](https://github.com/nbv9704/CASI4F)
 
 ---
 
@@ -311,8 +311,8 @@ This project is released under the MIT License. See [LICENSE](LICENSE) file for 
 
 If you have questions, encounter bugs, or want to contribute ideas:
 
-- 🐛 [Report bugs](https://github.com/nbv9704/4FUNBET/issues)
-- 💡 [Suggest features](https://github.com/nbv9704/4FUNBET/issues/new)
+- 🐛 [Report bugs](https://github.com/nbv9704/CASI4F/issues)
+- 💡 [Suggest features](https://github.com/nbv9704/CASI4F/issues/new)
 - 📧 Email: ngobaoviet97@gmail.com
 
 ---

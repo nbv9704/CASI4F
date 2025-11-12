@@ -4,7 +4,7 @@
 import RequireAuth from '@/components/RequireAuth'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BellRing, CheckCircle2, Inbox, Loader2, RefreshCw } from 'lucide-react'
-import Loading from '../../components/Loading'
+import LoadingState from '@/components/LoadingState'
 import { useLocale } from '../../context/LocaleContext'
 import { useUser } from '../../context/UserContext'
 import useApi from '../../hooks/useApi'
@@ -150,7 +150,7 @@ function NotificationsPage() {
   }
 
   if (!initialized && loading) {
-    return <Loading text={t('loading.notifications')} />
+    return <LoadingState message={t('loading.notifications')} />
   }
 
   return (

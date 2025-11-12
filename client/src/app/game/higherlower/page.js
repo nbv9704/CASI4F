@@ -20,9 +20,11 @@ function HigherLowerPage() {
   const [currentNumber, setCurrentNumber] = useState(10);
   const [nextNumber, setNextNumber] = useState(null);
   const [streak, setStreak] = useState(0);
+  const [lockedBet, setLockedBet] = useState(0); // Track locked bet during streak
   const [history, setHistory] = useState([]);
   const [guessing, setGuessing] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
 
   // Load initial state from server
   const loadState = useCallback(async () => {
@@ -33,6 +35,13 @@ function HigherLowerPage() {
       }
       if (data.streak !== undefined) {
         setStreak(data.streak);
+      }
+      if (data.lockedBet !== undefined) {
+        setLockedBet(data.lockedBet);
+        // If there's a locked bet, set the bet amount to that
+        if (data.lockedBet > 0) {
+          setBetAmount(data.lockedBet);
+        }
       }
     } catch (err) {
       console.error("Failed to load Higher/Lower state:", err);
@@ -65,18 +74,21 @@ function HigherLowerPage() {
         if (data.tie) {
           toast(`🤝 It's a tie! Both were ${data.initial}`, { icon: "ℹ️" });
           setStreak(0);
+          setLockedBet(0); // Reset locked bet on tie
           setHistory((prev) =>
             [...prev, { from: data.initial, to: data.result, guess, outcome: "tie" }].slice(-10)
           );
         } else if (data.win) {
           toast.success(`🎉 Correct! ${data.initial} → ${data.result}`);
           setStreak(data.streak);
+          setLockedBet(data.lockedBet || 0); // Update locked bet
           setHistory((prev) =>
             [...prev, { from: data.initial, to: data.result, guess, outcome: "win" }].slice(-10)
           );
         } else {
           toast.error(`😢 Wrong! ${data.initial} → ${data.result}`);
           setStreak(0);
+          setLockedBet(0); // Reset locked bet on loss
           setHistory((prev) =>
             [...prev, { from: data.initial, to: data.result, guess, outcome: "lose" }].slice(-10)
           );
@@ -123,6 +135,24 @@ function HigherLowerPage() {
     [balance, currentNumber, streak, effectiveMultiplier, history.length]
   );
 
+  const handleStopStreak = useCallback(async () => {
+    if (streak === 0 || guessing || isStopping) return;
+
+    setIsStopping(true);
+    try {
+      const data = await post("/game/higherlower/stop");
+      setStreak(0);
+      setLockedBet(0);
+      setCurrentNumber(typeof data?.lastNumber === "number" ? data.lastNumber : 10);
+      setShowResult(false);
+      setNextNumber(null);
+      toast.success("Streak ended. Bet unlocked.");
+    } catch (err) {
+      // useApi handles toast
+    } finally {
+      setIsStopping(false);
+    }
+  }, [guessing, isStopping, post, streak]);
   return (
     <SoloGameLayout
       title="⬆️⬇️ Higher or Lower"
@@ -173,10 +203,10 @@ function HigherLowerPage() {
             </div>
           </div>
 
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
             <div className="space-y-3">
               <label className="text-xs font-semibold uppercase tracking-[0.25em] text-white/50" htmlFor="hl-bet">
-                Bet amount
+                Bet amount {lockedBet > 0 && <span className="text-amber-400">(Locked during streak)</span>}
               </label>
               <input
                 id="hl-bet"
@@ -185,29 +215,38 @@ function HigherLowerPage() {
                 value={betAmount}
                 onChange={(e) => setBetAmount(+e.target.value)}
                 className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-lg font-semibold text-white outline-none transition focus:border-sky-400 focus:bg-black/60 focus:text-white disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={guessing}
+                disabled={guessing || lockedBet > 0}
+                title={lockedBet > 0 ? `Bet is locked at ${lockedBet} coins during active streak` : ''}
               />
               <p className="text-xs text-white/40">
                 Wins pay out with a base 1.5x multiplier plus streak bonuses.
               </p>
             </div>
-
-              <div className="grid gap-3">
+            <div className="grid gap-3">
+              <button
+                onClick={() => handleGuess("higher")}
+                disabled={guessing}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500/80 via-teal-500/80 to-cyan-500/80 px-4 py-4 text-lg font-semibold uppercase tracking-[0.25em] text-white shadow-lg shadow-emerald-500/30 transition hover:shadow-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                ⬆️ Higher
+              </button>
+              <button
+                onClick={() => handleGuess("lower")}
+                disabled={guessing}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/40 bg-gradient-to-r from-rose-500/80 via-red-500/80 to-orange-500/80 px-4 py-4 text-lg font-semibold uppercase tracking-[0.25em] text-white shadow-lg shadow-rose-500/30 transition hover:shadow-rose-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                ⬇️ Lower
+              </button>
+              {streak > 0 ? (
                 <button
-                  onClick={() => handleGuess("higher")}
-                  disabled={guessing}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/40 bg-gradient-to-r from-emerald-500/80 via-teal-500/80 to-cyan-500/80 px-4 py-4 text-lg font-semibold uppercase tracking-[0.25em] text-white shadow-lg shadow-emerald-500/30 transition hover:shadow-emerald-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={handleStopStreak}
+                  disabled={guessing || isStopping}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300/40 bg-gradient-to-r from-amber-500/80 via-yellow-500/80 to-amber-400/80 px-4 py-4 text-lg font-semibold uppercase tracking-[0.25em] text-white shadow-lg shadow-amber-500/30 transition hover:shadow-amber-500/50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  ⬆️ Higher
+                  {isStopping ? "Releasing…" : "🛑 End streak"}
                 </button>
-                <button
-                  onClick={() => handleGuess("lower")}
-                  disabled={guessing}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/40 bg-gradient-to-r from-rose-500/80 via-red-500/80 to-orange-500/80 px-4 py-4 text-lg font-semibold uppercase tracking-[0.25em] text-white shadow-lg shadow-rose-500/30 transition hover:shadow-rose-500/50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  ⬇️ Lower
-                </button>
-              </div>
+              ) : null}
+            </div>
           </div>
 
           {guessing ? (

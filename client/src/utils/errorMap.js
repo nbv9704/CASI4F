@@ -4,6 +4,7 @@ const MAP = {
   AUTH_TOKEN_MISSING: 'Vui lòng đăng nhập để tiếp tục',
   AUTH_TOKEN_INVALID: 'Phiên đăng nhập không hợp lệ',
   AUTH_TOKEN_EXPIRED: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại',
+  AUTH_TOKEN_INVALID_USER_ID: 'Phiên đăng nhập không hợp lệ.',
   AUTH_INVALID_CREDENTIALS: 'Tên đăng nhập hoặc mật khẩu không đúng',
   
   // ========== USER ERRORS (NEW) ==========
@@ -11,6 +12,14 @@ const MAP = {
   USER_DUPLICATE_USERNAME: 'Tên người dùng đã tồn tại. Vui lòng chọn tên khác',
   USER_DUPLICATE_EMAIL: 'Email đã được sử dụng',
   USER_INVALID_PASSWORD: 'Mật khẩu không đúng',
+
+  PROFILE_NOT_FOUND: 'Không tìm thấy hồ sơ người chơi.',
+  PROFILE_NOT_VISIBLE: 'Hồ sơ này đang ở chế độ riêng tư.',
+  PROFILE_BADGE_NOT_OWNED: 'Bạn chưa sở hữu huy hiệu này.',
+  PROFILE_ACHIEVEMENT_NOT_UNLOCKED: 'Bạn chưa mở khóa thành tựu này.',
+  PROFILE_SHOWCASE_LIMIT: 'Chỉ có thể ghim tối đa 3 thành tựu.',
+  PROFILE_SHOWCASE_DUPLICATE: 'Thành tựu ghim không được trùng nhau.',
+  PROFILE_SOCIAL_LINK_INVALID: 'Liên kết mạng xã hội không hợp lệ.',
   
   // ========== RATE LIMIT ERRORS (NEW) ==========
   RATE_LIMIT_EXCEEDED: 'Bạn đang thao tác quá nhanh. Vui lòng đợi một chút',

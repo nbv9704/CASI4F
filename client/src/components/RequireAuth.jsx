@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import Loading from '@/components/Loading'
+import LoadingState from '@/components/LoadingState'
 import { useUser } from '@/context/UserContext'
 import { useLocale } from '@/context/LocaleContext'
 
@@ -70,12 +70,12 @@ export default function RequireAuth(Component) {
 
     // Chưa kiểm tra xong: dùng 1 text duy nhất để tránh mismatch
     if (!checked || hasToken === null) {
-      return <Loading text={t('loading.auth')} />
+      return <LoadingState message={t('loading.auth')} />
     }
 
     // Đã kiểm tra: không có token hoặc không lấy được user → redirect (effect đã xử lý)
     if (!hasToken || !user) {
-      return <Loading text={t('loading.auth')} />
+      return <LoadingState message={t('loading.auth')} />
     }
 
     // OK

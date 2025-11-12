@@ -1,10 +1,9 @@
 // client/src/components/Loading.jsx
 'use client'
 
-export default function Loading({ text = 'Loading…' }) {
-  return (
-    <div className="p-8 text-center">
-      <span>{text}</span>
-    </div>
-  )
+import LoadingState from './LoadingState'
+
+// Legacy wrapper to preserve backwards compatibility
+export default function Loading(props) {
+  return <LoadingState {...props} />
 }

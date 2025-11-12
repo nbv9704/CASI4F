@@ -1,7 +1,23 @@
 // client/src/components/ConfirmDialog.jsx
 'use client';
-import { useEffect, useRef, useCallback, useId } from 'react';
+import { useEffect, useRef, useCallback, useId, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
+
+const toneStyles = {
+  default: {
+    iconWrapper: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+    accent: 'from-blue-500/15 via-blue-500/5 to-transparent',
+    confirmButton:
+      'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/30 hover:from-blue-400 hover:to-indigo-400 focus-visible:outline-blue-500',
+  },
+  danger: {
+    iconWrapper: 'bg-rose-500/10 text-rose-400 border border-rose-500/20',
+    accent: 'from-rose-500/18 via-rose-500/6 to-transparent',
+    confirmButton:
+      'bg-gradient-to-r from-rose-500 to-red-500 text-white shadow-lg shadow-rose-500/30 hover:from-rose-400 hover:to-red-400 focus-visible:outline-rose-500',
+  },
+};
 
 export default function ConfirmDialog({
   open,
@@ -14,6 +30,7 @@ export default function ConfirmDialog({
   onOpenChange,        // (nextOpen:boolean) => void
   loading = false,
   variant,             // 'danger' | undefined
+  icon,
 }) {
   const backdropRef = useRef(null);
   const panelRef = useRef(null);
@@ -103,12 +120,16 @@ export default function ConfirmDialog({
     }
   }, [open, loading, onCancel, onOpenChange]);
 
+  const toneKey = variant === 'danger' ? 'danger' : 'default';
+  const styles = toneStyles[toneKey];
+  const IconComponent = useMemo(() => icon || (toneKey === 'danger' ? ShieldAlert : ShieldCheck), [icon, toneKey]);
+
   if (!open) return null;
 
   return createPortal(
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? titleId : undefined}
@@ -125,36 +146,61 @@ export default function ConfirmDialog({
     >
       <div
         ref={panelRef}
-        className="bg-white dark:bg-gray-900 dark:text-white w-full max-w-sm rounded-2xl p-4 shadow-lg outline-none"
+        className="relative w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/30 bg-white/98 p-6 text-slate-900 shadow-[0_30px_60px_-32px_rgba(15,23,42,0.75)] outline-none transition dark:border-white/8 dark:bg-slate-950/92 dark:text-white dark:shadow-[0_30px_60px_-28px_rgba(2,6,23,0.85)]"
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="text-lg font-semibold mb-2" id={titleId}>{title}</div>
-        {description && (
-          <div className="text-sm opacity-80 mb-4" id={descId}>
-            {description}
+        <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${styles.accent}`} aria-hidden="true" />
+        <div className="relative flex flex-col gap-6">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/40 bg-white/95 shadow-sm dark:border-white/12 dark:bg-white/10" aria-hidden="true">
+            <div className={`flex h-full w-full items-center justify-center rounded-2xl ${styles.iconWrapper}`}>
+              <IconComponent className="h-6 w-6" />
+            </div>
           </div>
-        )}
 
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            className="px-3 py-2 rounded-xl border"
-            onClick={() => { onCancel?.(); onOpenChange?.(false); }}
-            disabled={loading}
-          >
-            {cancelText}
-          </button>
-          <button
-            type="button"
-            className={`px-3 py-2 rounded-xl border shadow disabled:opacity-50 ${
-              variant === 'danger' ? 'border-red-500 text-red-600' : ''
-            }`}
-            onClick={onConfirm}
-            disabled={loading}
-          >
-            {loading ? '...' : confirmText}
-          </button>
+          <header className="flex flex-col gap-2 text-center">
+            <h2 className="text-lg font-semibold tracking-tight" id={titleId}>
+              {title}
+            </h2>
+            {description && (
+              <div className="text-sm text-slate-600 dark:text-white/70" id={descId}>
+                {typeof description === 'string' ? <p>{description}</p> : description}
+              </div>
+            )}
+          </header>
+
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200/40 bg-white/90 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/15"
+              onClick={() => {
+                if (loading) return;
+                onCancel?.();
+                onOpenChange?.(false);
+              }}
+              disabled={loading}
+            >
+              {cancelText}
+            </button>
+            <button
+              type="button"
+              className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${styles.confirmButton}`}
+              onClick={() => {
+                if (loading) return;
+                onConfirm?.();
+              }}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>{confirmText}</span>
+                </>
+              ) : (
+                confirmText
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>,

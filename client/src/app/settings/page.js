@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Image from "next/image";
 import useApi from "../../hooks/useApi";
 import { useUser } from "../../context/UserContext";
-import Loading from "../../components/Loading";
+import LoadingState from "@/components/LoadingState";
 import { toast } from "react-hot-toast";
 import { useLocale } from "../../context/LocaleContext";
 import {
@@ -287,7 +287,7 @@ function SettingsPage() {
       .catch(() => toast.error(translate("common.copyFailure", "Failed to copy")));
   };
 
-  if (!user) return <Loading text={t("loading.settings")} />;
+  if (!user) return <LoadingState message={t("loading.settings")} />;
 
   return (
     <div className="space-y-8">

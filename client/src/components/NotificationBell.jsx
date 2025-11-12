@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { Bell, Loader2 } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import useApi from '../hooks/useApi';
 import useSocket from '../hooks/useSocket';
 import { useUser } from '../context/UserContext';
@@ -22,7 +22,7 @@ function dedupeById(list) {
   return out;
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ variant = 'dropdown', className = '', buttonClassName = '' }) {
   const router = useRouter();
   const { user } = useUser();
   const { get, patch, post } = useApi();
@@ -30,11 +30,10 @@ export default function NotificationBell() {
 
   const [notifications, setNotifications] = useState([]);
   const [dropdownOpen, setDropdownOpen]   = useState(false);
-  const [isRefreshing, setIsRefreshing]   = useState(false);
 
   const bellRef = useRef(null);
-  const mountedRef = useRef(false);
   const inflightRef = useRef(false);
+  const isLinkVariant = variant === 'link';
 
   // 🔒 Cố định các hàm API để tránh đổi identity mỗi render
   const getRef = useRef(get);
@@ -44,18 +43,11 @@ export default function NotificationBell() {
   useEffect(() => { patchRef.current = patch; }, [patch]);
   useEffect(() => { postRef.current = post; }, [post]);
 
-  // Guard mounted
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
     if (inflightRef.current) return; // chặn spam/loop
     inflightRef.current = true;
     try {
-      setIsRefreshing(true);
       const res = await getRef.current(`/notification?limit=100&ts=${Date.now()}`);
       const serverList = Array.isArray(res.notifications) ? res.notifications : [];
       setNotifications(prev => dedupeById([...serverList, ...prev]));
@@ -63,7 +55,6 @@ export default function NotificationBell() {
       // giữ nguyên danh sách cũ nếu lỗi
     } finally {
       inflightRef.current = false;
-      if (mountedRef.current) setIsRefreshing(false);
     }
   }, [user]);
 
@@ -75,17 +66,21 @@ export default function NotificationBell() {
 
   // Prefetch trang /notifications khi mở dropdown → điều hướng mượt hơn
   useEffect(() => {
+    if (isLinkVariant) return;
     if (dropdownOpen) router.prefetch('/notifications');
-  }, [dropdownOpen, router]);
+  }, [dropdownOpen, router, isLinkVariant]);
 
-  // Real-time incoming notifications (dedupe)
+  // Real-time incoming notifications (dedupe) - sync to notification bell only
   useSocket(user?.id, notif => {
     if (!notif) return;
     setNotifications(prev => dedupeById([notif, ...prev]));
+    // Note: Toast is handled by game controllers for immediate feedback
+    // This listener only updates the notification bell in real-time
   });
 
   // Close dropdown on outside click
   useEffect(() => {
+    if (isLinkVariant) return;
     function onClick(e) {
       if (!dropdownOpen) return;
       if (bellRef.current && !bellRef.current.contains(e.target)) {
@@ -94,17 +89,18 @@ export default function NotificationBell() {
     }
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
-  }, [dropdownOpen]);
+  }, [dropdownOpen, isLinkVariant]);
 
   // Close with Escape
   useEffect(() => {
+    if (isLinkVariant) return;
     function onKey(e) {
       if (!dropdownOpen) return;
       if (e.key === 'Escape') setDropdownOpen(false);
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [dropdownOpen]);
+  }, [dropdownOpen, isLinkVariant]);
 
   const markAsRead = useCallback(async (id) => {
     try {
@@ -130,19 +126,31 @@ export default function NotificationBell() {
     // Mark read (best-effort)
     await markAsRead(n._id);
 
-    // Extract roomId & path from metadata/link
-    const roomId = n?.metadata?.roomId || (typeof n?.link === 'string' ? n.link.split('/').pop() : undefined);
-    const path = n?.metadata?.path || n?.link || (roomId ? `/game/battle/room/${roomId}` : null);
+    const metadataPath = typeof n?.metadata?.path === 'string' ? n.metadata.path : null;
+    const linkPath = typeof n?.link === 'string' ? n.link : null;
+    const isAchievement = n?.type === 'achievement_unlocked';
+    const candidatePath = isAchievement ? '/collections' : metadataPath || linkPath;
 
-    if (roomId) {
+    const roomIdFromMetadata = typeof n?.metadata?.roomId === 'string' ? n.metadata.roomId.trim() : '';
+    let derivedRoomId = roomIdFromMetadata;
+
+    if (!derivedRoomId && candidatePath) {
+      const match = candidatePath.match(/\/(?:game\/battle\/room|pvp\/room)\/([A-Za-z0-9_-]{6,})$/);
+      if (match) {
+        derivedRoomId = match[1];
+      }
+    }
+
+    const targetPath = candidatePath || (derivedRoomId ? `/game/battle/room/${derivedRoomId}` : null);
+
+    if (derivedRoomId) {
       try {
-        // Auto-join before redirect (ignore errors like "already in room")
-        await postRef.current(`/pvp/${roomId}/join`, {});
+        await postRef.current(`/pvp/${derivedRoomId}/join`, {});
       } catch {}
     }
 
-    if (path) {
-      router.push(path);
+    if (targetPath) {
+      router.push(targetPath);
       setDropdownOpen(false);
     }
   }, [markAsRead, router]);
@@ -164,14 +172,26 @@ export default function NotificationBell() {
     [locale]
   );
 
+  const handleTrigger = useCallback(() => {
+    if (isLinkVariant) {
+      router.push('/notifications');
+      return;
+    }
+    setDropdownOpen((o) => !o);
+  }, [isLinkVariant, router]);
+
+  const sharedButtonClasses = `group relative flex items-center justify-center rounded-2xl border border-white/10 text-white transition hover:border-indigo-400/60 hover:bg-indigo-500/20 ${
+    isLinkVariant ? 'h-12 w-12 sm:h-11 sm:w-11' : 'h-11 w-11'
+  } ${buttonClassName}`.trim();
+
   return (
-    <div className="relative" ref={bellRef}>
+    <div className={`relative ${className}`} ref={bellRef}>
       <button
-        onClick={() => setDropdownOpen(o => !o)}
+        onClick={handleTrigger}
         aria-label={t('notifications.dropdown.ariaButton')}
-        aria-expanded={dropdownOpen}
-        aria-haspopup="menu"
-        className="group relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white transition hover:border-indigo-400/60 hover:bg-indigo-500/20"
+        aria-expanded={!isLinkVariant && dropdownOpen}
+        aria-haspopup={isLinkVariant ? undefined : 'menu'}
+        className={sharedButtonClasses}
         type="button"
       >
         <Bell className="h-5 w-5 text-white/80 group-hover:text-white" />
@@ -185,7 +205,7 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {dropdownOpen && (
+      {!isLinkVariant && dropdownOpen && (
         <div
           role="menu"
           aria-label={t('notifications.dropdown.ariaButton')}
@@ -244,33 +264,18 @@ export default function NotificationBell() {
               ))
             )}
           </ul>
-          <div className="pt-2 flex items-center justify-between gap-2">
+          <div className="pt-2 flex items-center justify-between gap-3">
             <button
               onClick={markAllAsRead}
               disabled={notifications.length === 0 || unreadCount === 0}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:border-indigo-400/50 hover:text-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-white transition hover:border-indigo-400/50 hover:text-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
               type="button"
             >
               {t('notifications.dropdown.markAll')}
             </button>
             <button
-              onClick={fetchNotifications}
-              disabled={isRefreshing}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:border-indigo-400/50 hover:text-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
-              type="button"
-            >
-              {isRefreshing ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>{t('notifications.dropdown.refreshing')}</span>
-                </>
-              ) : (
-                <span>{t('notifications.dropdown.refresh')}</span>
-              )}
-            </button>
-            <button
               onClick={() => { setDropdownOpen(false); router.push('/notifications'); }}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:border-indigo-400/50 hover:text-indigo-100"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-white transition hover:border-indigo-400/50 hover:text-indigo-100"
               type="button"
             >
               {t('notifications.dropdown.viewAll')}

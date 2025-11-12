@@ -60,7 +60,7 @@ export default function Footer() {
   ]
 
   return (
-    <footer className='relative mt-24 overflow-hidden border-t border-white/5 bg-[#070b1f] text-slate-200'>
+    <footer className='relative mt-24 overflow-hidden border-t border-white/5 bg-[#070b1f] pb-28 text-slate-200 md:pb-16'>
       <div className='absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-[#070b1f] to-slate-900/60' aria-hidden='true' />
       <div className='absolute -left-40 top-0 h-72 w-72 rounded-full bg-fuchsia-500/20 blur-3xl' aria-hidden='true' />
       <div className='absolute -right-32 bottom-10 h-72 w-72 rounded-full bg-sky-500/20 blur-3xl' aria-hidden='true' />

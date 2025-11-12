@@ -3,17 +3,22 @@
 
 import Link from "next/link";
 import { ArrowLeft, Swords } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import GameCard from "@/components/GameCard";
 import RequireAuth from '@/components/RequireAuth'
 import { GAMES } from "@/data/games";
 import { useLocale } from "@/context/LocaleContext";
+import { useGameConfig } from "@/hooks/useGameConfig";
 
 const HAS_THUMB = new Set(["coinflip", "dice", "blackjackdice"]);
 
 function BattleSelectPage() {
   const { t } = useLocale()
+  const router = useRouter()
+  const { isGameDisabled, loading: configLoading, refreshing: configRefreshing, refresh } = useGameConfig()
+  const [alertMessage, setAlertMessage] = useState('')
 
   const games = useMemo(() => {
     const battleGames = GAMES.filter((g) => g.supports.includes("battle"))
@@ -31,6 +36,25 @@ function BattleSelectPage() {
       return a.displayName.localeCompare(b.displayName)
     })
   }, [t])
+
+  const handleGameClick = async (e, gameId) => {
+    if (configLoading || configRefreshing) {
+      e.preventDefault()
+      setAlertMessage('⏳ Đang kiểm tra trạng thái game...')
+      setTimeout(() => setAlertMessage(''), 1500)
+      return
+    }
+
+    await refresh()
+
+    if (isGameDisabled(gameId)) {
+      e.preventDefault()
+      setAlertMessage('🚫 Game đang bị tạm khóa, vui lòng đợi...')
+      setTimeout(() => setAlertMessage(''), 3000)
+      return
+    }
+    router.push(`/game/battle/${gameId}`)
+  }
 
   return (
     <main className="min-h-screen text-slate-100">
@@ -78,21 +102,28 @@ function BattleSelectPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-5">
-            {games.map((g) => (
-              <Link
-                key={g.id}
-                href={`/game/battle/${g.id}`}
-                className="focus-visible:ring-offset-3 group relative block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/80 focus-visible:ring-offset-slate-950"
-                aria-label={t('games.page.previewAria', { name: g.displayName })}
-              >
-                <div className="absolute inset-0 rounded-3xl border border-slate-800/70 bg-slate-950/70 opacity-0 transition group-hover:opacity-100" aria-hidden="true" />
-                <div className="relative">
-                  <GameCard mode={g.id} fluid />
-                </div>
-              </Link>
-            ))}
-          </div>
+          <>
+            {alertMessage && (
+              <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-2xl border border-red-200 bg-red-50/95 px-6 py-3 text-sm font-medium text-red-800 shadow-lg backdrop-blur dark:border-red-800/60 dark:bg-red-900/90 dark:text-red-200">
+                {alertMessage}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6 lg:grid-cols-4 xl:grid-cols-5">
+              {games.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={(e) => handleGameClick(e, g.id)}
+                  className="focus-visible:ring-offset-3 group relative block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/80 focus-visible:ring-offset-slate-950 text-left w-full"
+                  aria-label={t('games.page.previewAria', { name: g.displayName })}
+                >
+                  <div className="absolute inset-0 rounded-3xl border border-slate-800/70 bg-slate-950/70 opacity-0 transition group-hover:opacity-100" aria-hidden="true" />
+                  <div className="relative">
+                    <GameCard mode={g.id} fluid disabled={!configLoading && isGameDisabled(g.id)} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </main>

@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Loading from '@/components/Loading';
+import LoadingState from '@/components/LoadingState';
 import useApi from '@/hooks/useApi';
 
 export default function RoomRedirect({ params }) {
@@ -39,5 +39,5 @@ export default function RoomRedirect({ params }) {
     fetchRoomAndRedirect();
   }, [roomId, router, api, redirecting]);
 
-  return <Loading />;
+  return <LoadingState message="Redirecting to room..." />;
 }

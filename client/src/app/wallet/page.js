@@ -2,10 +2,11 @@
 'use client'
 
 import RequireAuth from '@/components/RequireAuth'
+import LoadingState from '@/components/LoadingState'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import useApi from '../../hooks/useApi'
 import { useUser } from '../../context/UserContext'
-import Loading from '../../components/Loading'
 import { toast } from 'react-hot-toast'
 import { useLocale } from '../../context/LocaleContext'
 import {
@@ -25,7 +26,6 @@ function WalletPage() {
 	const { user, balance, bank, updateBalance, updateBank } = useUser()
 	const { post, get } = useApi()
 	const { t, locale } = useLocale()
-
 	const [activeTab, setActiveTab] = useState('account')
 	const [toId, setToId] = useState('')
 	const [transferAmt, setTransferAmt] = useState('')
@@ -36,32 +36,43 @@ function WalletPage() {
 	const [historyLoading, setHistoryLoading] = useState(false)
 	const [page, setPage] = useState(1)
 	const pageSize = 5
+	const [confirmOpen, setConfirmOpen] = useState(false)
+	const [pendingTransfer, setPendingTransfer] = useState(null)
+	const [confirmingTransfer, setConfirmingTransfer] = useState(false)
 
-	useEffect(() => {
-		if (!user || activeTab !== 'transaction') return
+	const fetchTransactions = useCallback(async () => {
+		if (!user?.id) return
 
 		setHistoryLoading(true)
-		get(`/wallet/${user.id}/transactions`)
-			.then(async (res) => {
-				const enriched = await Promise.all(
-					(res.transactions || []).map(async (tx) => {
-						if (tx.type !== 'transfer') return tx
-						if (tx.toUserId) {
-							const toUser = await get(`/user/${tx.toUserId}`)
-							return { ...tx, toUsername: toUser.username }
-						}
-						if (tx.fromUserId) {
-							const fromUser = await get(`/user/${tx.fromUserId}`)
-							return { ...tx, fromUsername: fromUser.username }
-						}
-						return tx
-					})
-				)
-				setTransactions(enriched)
-			})
-			.catch((err) => toast.error(err.message))
-			.finally(() => setHistoryLoading(false))
-	}, [activeTab, get, user])
+		try {
+			const res = await get(`/wallet/${user.id}/transactions`)
+			const base = Array.isArray(res.transactions) ? res.transactions : []
+			const enriched = await Promise.all(
+				base.map(async (tx) => {
+					if (tx.type !== 'transfer') return tx
+					if (tx.toUserId) {
+						const toUser = await get(`/user/${tx.toUserId}`)
+						return { ...tx, toUsername: toUser.username }
+					}
+					if (tx.fromUserId) {
+						const fromUser = await get(`/user/${tx.fromUserId}`)
+						return { ...tx, fromUsername: fromUser.username }
+					}
+					return tx
+				})
+			)
+			setTransactions(enriched)
+		} catch (err) {
+			toast.error(err.message)
+		} finally {
+			setHistoryLoading(false)
+		}
+	}, [get, user?.id])
+
+	useEffect(() => {
+		if (activeTab !== 'transaction') return
+		fetchTransactions()
+	}, [activeTab, fetchTransactions])
 
 	useEffect(() => {
 		setPage(1)
@@ -70,56 +81,82 @@ function WalletPage() {
 	const formatCurrency = useCallback(
 		(value) => {
 			const numeric = typeof value === 'number' ? value : Number(value)
-			if (Number.isFinite(numeric)) {
-				return numeric.toLocaleString(locale)
+			if (!Number.isFinite(numeric)) {
+				return value || '0'
 			}
-			return value || '0'
+			const hasDecimals = !Number.isInteger(numeric)
+			return numeric.toLocaleString(locale, {
+				minimumFractionDigits: hasDecimals ? 2 : 0,
+				maximumFractionDigits: 2,
+			})
 		},
 		[locale]
 	)
 
 	const handleTransfer = async (e) => {
 		e.preventDefault()
-		const amountValue = Number(transferAmt)
-		if (!toId.trim() || amountValue <= 0) {
+		const amountValue = Number.parseFloat(transferAmt)
+		if (!toId.trim() || !Number.isFinite(amountValue) || amountValue <= 0) {
+			toast.error(t('wallet.transfer.validation'))
+			return
+		}
+		const normalizedAmount = Math.round(amountValue * 100) / 100
+		if (normalizedAmount <= 0) {
 			toast.error(t('wallet.transfer.validation'))
 			return
 		}
 
 		setSubmitting(true)
 		try {
-			const target = await get(`/user/${toId}`)
-			const formattedAmount = formatCurrency(amountValue)
-			if (
-				!window.confirm(
-					t('wallet.transfer.confirm', {
-						amount: formattedAmount,
-						username: target.username,
-					})
-				)
-			) {
-				return
-			}
-			const res = await post(`/wallet/${user.id}/transfer`, {
-				toUserId: toId,
-				amount: amountValue,
+			const trimmedId = toId.trim()
+			const target = await get(`/user/${trimmedId}`)
+			const formattedAmount = formatCurrency(normalizedAmount)
+			setPendingTransfer({
+				userId: trimmedId,
+				username: target?.username || trimmedId,
+				amount: normalizedAmount,
+				formattedAmount,
 			})
-			updateBalance(res.fromBalance)
-			toast.success(
-				t('wallet.toast.transferSuccess', {
-					amount: formattedAmount,
-					username: target.username,
-				})
-			)
-			setToId('')
-			setTransferAmt('')
-			setActiveTab('transaction')
+			setConfirmOpen(true)
 		} catch (err) {
 			toast.error(err.message)
 		} finally {
 			setSubmitting(false)
 		}
 	}
+
+	const handleConfirmTransfer = useCallback(async () => {
+		if (!pendingTransfer || !user?.id) return
+
+		setConfirmingTransfer(true)
+		try {
+			const res = await post(`/wallet/${user.id}/transfer`, {
+				toUserId: pendingTransfer.userId,
+				amount: pendingTransfer.amount,
+			})
+			updateBalance(res.fromBalance)
+			toast.success(
+				t('wallet.toast.transferSuccess', {
+					amount: pendingTransfer.formattedAmount,
+					username: pendingTransfer.username,
+				})
+			)
+			setToId('')
+			setTransferAmt('')
+			setConfirmOpen(false)
+			setPendingTransfer(null)
+			if (activeTab === 'transaction') fetchTransactions()
+		} catch (err) {
+			toast.error(err.message)
+		} finally {
+			setConfirmingTransfer(false)
+		}
+	}, [pendingTransfer, user?.id, post, updateBalance, t, activeTab, fetchTransactions])
+
+	const handleCancelTransfer = useCallback(() => {
+		setConfirmOpen(false)
+		setPendingTransfer(null)
+	}, [])
 
 	const handleDeposit = async (e) => {
 		e.preventDefault()
@@ -142,7 +179,7 @@ function WalletPage() {
 				})
 			)
 			setDepositAmt('')
-			setActiveTab('transaction')
+			if (activeTab === 'transaction') fetchTransactions()
 		} catch (err) {
 			toast.error(err.message)
 		} finally {
@@ -171,7 +208,7 @@ function WalletPage() {
 				})
 			)
 			setWithdrawAmt('')
-			setActiveTab('transaction')
+			if (activeTab === 'transaction') fetchTransactions()
 		} catch (err) {
 			toast.error(err.message)
 		} finally {
@@ -251,53 +288,62 @@ function WalletPage() {
 		})
 	}, [formatCurrency, pagedTxs, t])
 
+	const confirmDescription = useMemo(() => {
+		if (!pendingTransfer) return ''
+		return t('wallet.transfer.confirm', {
+			amount: pendingTransfer.formattedAmount,
+			username: pendingTransfer.username,
+		})
+	}, [pendingTransfer, t])
+
 	if (!user) {
-		return <Loading text={t('common.loginRequiredWallet')} />
+		return <LoadingState message={t('common.loginRequiredWallet')} />
 	}
 
 	return (
-		<div className="space-y-8">
-			<section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 p-8 text-white shadow-2xl">
-				<div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.25),_transparent_55%)]" />
-				<div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
-					<div>
-						<p className="text-sm uppercase tracking-[0.2em] text-blue-200">{t('wallet.header.accent')}</p>
-						<h1 className="mt-2 text-3xl font-bold md:text-4xl">{t('wallet.header.title')}</h1>
-						<p className="mt-3 text-sm text-blue-100/80">{t('wallet.header.subtitle')}</p>
-					</div>
-
-				<div className="grid gap-3 sm:grid-cols-2">
-					<div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-						<Wallet2 className="h-8 w-8 text-emerald-300" />
+		<>
+			<div className="space-y-8">
+				<section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 p-8 text-white shadow-2xl">
+					<div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.25),_transparent_55%)]" />
+					<div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
 						<div>
-							<p className="text-xs uppercase tracking-wide text-white/70">
-								{t('settings.balance.wallet')}
-							</p>
-							<p className="text-lg font-semibold" suppressHydrationWarning>
-								{formatCurrency(balance)}
-							</p>
+							<p className="text-sm uppercase tracking-[0.2em] text-blue-200">{t('wallet.header.accent')}</p>
+							<h1 className="mt-2 text-3xl font-bold md:text-4xl">{t('wallet.header.title')}</h1>
+							<p className="mt-3 text-sm text-blue-100/80">{t('wallet.header.subtitle')}</p>
+						</div>
+
+						<div className="grid gap-3 sm:grid-cols-2">
+							<div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+								<Wallet2 className="h-8 w-8 text-emerald-300" />
+								<div>
+									<p className="text-xs uppercase tracking-wide text-white/70">
+										{t('settings.balance.wallet')}
+									</p>
+									<p className="text-lg font-semibold" suppressHydrationWarning>
+										{formatCurrency(balance)}
+									</p>
+								</div>
+							</div>
+							<div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+								<PiggyBank className="h-8 w-8 text-amber-300" />
+								<div>
+									<p className="text-xs uppercase tracking-wide text-white/70">
+										{t('settings.balance.bank')}
+									</p>
+									<p className="text-lg font-semibold" suppressHydrationWarning>
+										{formatCurrency(bank)}
+									</p>
+								</div>
+							</div>
 						</div>
 					</div>
-					<div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-						<PiggyBank className="h-8 w-8 text-amber-300" />
-						<div>
-							<p className="text-xs uppercase tracking-wide text-white/70">
-								{t('settings.balance.bank')}
-							</p>
-							<p className="text-lg font-semibold" suppressHydrationWarning>
-								{formatCurrency(bank)}
-							</p>
-						</div>
-					</div>
-				</div>
-				</div>
 
-				<div className="relative z-10 mt-6 flex flex-wrap gap-3">
-					{renderTabButton('account', t('wallet.tabs.transfer'), <ArrowLeftRight className="h-4 w-4" />)}
-					{renderTabButton('transaction', t('wallet.tabs.history'), <HistoryIcon className="h-4 w-4" />)}
-					{renderTabButton('bank', t('wallet.tabs.bank'), <Landmark className="h-4 w-4" />)}
-				</div>
-			</section>
+					<div className="relative z-10 mt-6 flex flex-wrap gap-3">
+						{renderTabButton('account', t('wallet.tabs.transfer'), <ArrowLeftRight className="h-4 w-4" />)}
+						{renderTabButton('transaction', t('wallet.tabs.history'), <HistoryIcon className="h-4 w-4" />)}
+						{renderTabButton('bank', t('wallet.tabs.bank'), <Landmark className="h-4 w-4" />)}
+					</div>
+				</section>
 
 			{activeTab === 'account' && (
 				<section className="rounded-3xl border border-white/5 bg-slate-900/70 p-8 shadow-xl backdrop-blur">
@@ -329,6 +375,8 @@ function WalletPage() {
 							<input
 								type="number"
 								min="1"
+								step="0.01"
+								inputMode="decimal"
 								value={transferAmt}
 								onChange={(e) => setTransferAmt(e.target.value)}
 								className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-100 placeholder:text-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/40 focus:outline-none transition"
@@ -360,7 +408,7 @@ function WalletPage() {
 				</section>
 			)}
 
-			{activeTab === 'bank' && (
+				{activeTab === 'bank' && (
 				<section className="rounded-3xl border border-white/5 bg-slate-900/70 p-8 shadow-xl backdrop-blur">
 					<div className="flex items-center gap-3 text-sm font-semibold text-gray-200">
 						<Landmark className="h-5 w-5 text-amber-300" />
@@ -444,7 +492,7 @@ function WalletPage() {
 				</section>
 			)}
 
-			{activeTab === 'transaction' && (
+				{activeTab === 'transaction' && (
 				<section className="rounded-3xl border border-white/5 bg-slate-900/70 p-8 shadow-xl backdrop-blur">
 					<div className="flex items-center gap-3 text-sm font-semibold text-gray-200">
 						<Home className="h-5 w-5 text-blue-300" />
@@ -456,7 +504,7 @@ function WalletPage() {
 
 					{historyLoading ? (
 						<div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-white/70">
-							<Loading text={t('wallet.history.loading')} />
+							<LoadingState message={t('wallet.history.loading')} fullscreen={false} className="py-12" />
 						</div>
 					) : pagedTxs.length === 0 ? (
 						<div className="mt-8 rounded-2xl border border-dashed border-white/10 bg-white/5 p-12 text-center text-white/60">
@@ -530,7 +578,21 @@ function WalletPage() {
 					)}
 				</section>
 			)}
-		</div>
+			</div>
+			<ConfirmDialog
+				open={confirmOpen}
+				title={t('wallet.transfer.title')}
+				description={confirmDescription}
+				confirmText={t('wallet.transfer.submit')}
+				cancelText={t('common.cancel')}
+				onConfirm={handleConfirmTransfer}
+				onCancel={handleCancelTransfer}
+				onOpenChange={(next) => {
+					if (!next) handleCancelTransfer()
+				}}
+				loading={confirmingTransfer}
+			/>
+		</>
 	)
 }
 

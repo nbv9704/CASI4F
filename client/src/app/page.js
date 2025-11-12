@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import LoadingState from "@/components/LoadingState";
 import {
   ArrowRight,
   Gamepad2,
@@ -37,7 +38,7 @@ const CTA_CONFIG = [
   },
   {
     id: "invite",
-    href: "/notifications",
+    href: "/friends",
     icon: Users,
     gradient: "from-pink-500 via-rose-500 to-purple-500",
   },
@@ -50,28 +51,28 @@ export default function HomePage() {
   const newsItems = useMemo(
     () => [
       {
-        id: "tournaments",
-        badge: t("home.news.items.tournaments.badge"),
-        title: t("home.news.items.tournaments.title"),
-        description: t("home.news.items.tournaments.description"),
-        action: t("home.news.items.tournaments.action"),
-        href: "/game/battle",
+        id: "presence",
+        badge: t("home.news.items.presence.badge"),
+        title: t("home.news.items.presence.title"),
+        description: t("home.news.items.presence.description"),
+        action: t("home.news.items.presence.action"),
+        href: "/profile",
       },
       {
-        id: "rewards",
-        badge: t("home.news.items.rewards.badge"),
-        title: t("home.news.items.rewards.title"),
-        description: t("home.news.items.rewards.description"),
-        action: t("home.news.items.rewards.action"),
-        href: "/rewards",
+        id: "social",
+        badge: t("home.news.items.social.badge"),
+        title: t("home.news.items.social.title"),
+        description: t("home.news.items.social.description"),
+        action: t("home.news.items.social.action"),
+        href: "/friends",
       },
       {
-        id: "security",
-        badge: t("home.news.items.security.badge"),
-        title: t("home.news.items.security.title"),
-        description: t("home.news.items.security.description"),
-        action: t("home.news.items.security.action"),
-        href: "/settings",
+        id: "collections",
+        badge: t("home.news.items.collections.badge"),
+        title: t("home.news.items.collections.title"),
+        description: t("home.news.items.collections.description"),
+        action: t("home.news.items.collections.action"),
+        href: "/collections",
       },
     ],
     [t],
@@ -294,9 +295,11 @@ export default function HomePage() {
                     {rankingsError}
                   </div>
                 ) : isRankingsLoading ? (
-                  <div className="px-6 py-6 text-sm text-slate-400">
-                    {t("home.rankings.loading")}
-                  </div>
+                  <LoadingState
+                    message={t("home.rankings.loading")}
+                    fullscreen={false}
+                    className="px-6 py-10"
+                  />
                 ) : leaderboard.length === 0 ? (
                   <div className="px-6 py-6 text-sm text-slate-400">
                     {t("home.rankings.empty")}

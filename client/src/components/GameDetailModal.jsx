@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
 import { useLocale } from '../context/LocaleContext'
+import { useGameConfig } from '../hooks/useGameConfig'
 
 /**
  * Props:
@@ -16,6 +17,7 @@ import { useLocale } from '../context/LocaleContext'
 export default function GameDetailModal({ open, onOpenChange, game, preferredType = 'solo' }) {
   const { t } = useLocale()
   const [selectedMode, setSelectedMode] = useState(preferredType)
+  const { isGameDisabled, loading: configLoading, refreshing: configRefreshing, refresh } = useGameConfig()
 
   const nameKey = game ? `games.entries.${game.id}.name` : null
   const descriptionKey = game ? `games.entries.${game.id}.description` : null
@@ -55,10 +57,18 @@ export default function GameDetailModal({ open, onOpenChange, game, preferredTyp
     }
   }, [open, game, preferredType])
 
+  useEffect(() => {
+    if (open) {
+      refresh()
+    }
+  }, [open, refresh])
+
   if (!open || !game) return null
 
   const hasBothModes = game.supports?.includes('solo') && game.supports?.includes('battle')
-  const playable = game.status === 'live' && game.supports?.includes(selectedMode)
+  const configBusy = configLoading || configRefreshing
+  const gameDisabled = !configBusy && isGameDisabled(game.id)
+  const playable = !configBusy && game.status === 'live' && game.supports?.includes(selectedMode) && !gameDisabled
 
   const href = selectedMode === 'battle'
     ? `/game/battle/${game.id}`
@@ -156,6 +166,18 @@ export default function GameDetailModal({ open, onOpenChange, game, preferredTyp
             )}
           </div>
 
+          {gameDisabled && (
+            <div className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-800/60 dark:bg-red-900/20 dark:text-red-200">
+              🚫 Game đang bị tạm khóa, vui lòng đợi...
+            </div>
+          )}
+
+          {configBusy && (
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50/80 px-4 py-3 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900/40 dark:text-neutral-300">
+              ⏳ Đang kiểm tra trạng thái game...
+            </div>
+          )}
+
           <div className="flex items-center justify-end gap-3">
             <button
               className="rounded-2xl border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-600 transition hover:border-neutral-300 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-500 dark:hover:text-white"
@@ -177,10 +199,10 @@ export default function GameDetailModal({ open, onOpenChange, game, preferredTyp
               <button
                 className="cursor-not-allowed rounded-2xl border border-neutral-200 px-5 py-2 text-sm font-semibold text-neutral-400 dark:border-neutral-700 dark:text-neutral-500"
                 disabled
-                title={t('games.modal.notAvailable')}
+                title={configBusy ? 'Đang kiểm tra trạng thái game' : gameDisabled ? 'Game đang bị tạm khóa' : t('games.modal.notAvailable')}
                 type="button"
               >
-                {t('games.modal.notAvailable')}
+                {configBusy ? '⏳ Kiểm tra...' : gameDisabled ? '🚫 Tạm khóa' : t('games.modal.notAvailable')}
               </button>
             )}
           </div>

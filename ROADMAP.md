@@ -1,6 +1,6 @@
-# 🗺️ 4FUNBET Roadmap
+# 🗺️ CASI4F Roadmap
 
-This document outlines the planned features and improvements for 4FUNBET platform.
+This document outlines the planned features and improvements for the CASI4F platform.
 
 ---
 
@@ -34,38 +34,40 @@ This document outlines the planned features and improvements for 4FUNBET platfor
 **Focus: Core Feature Enhancements**
 
 #### High Priority
-- [ ] **Enhanced Profile System**
+- [x] **Enhanced Profile System**
   - ~~Avatar upload & customization~~ ✅ **Already implemented**
-  - Public profile pages (shareable URLs)
-  - Bio and custom status messages
-  - Achievement showcase UI
-  - Profile badges and titles
+  - [x] Public profile pages (shareable URLs)
+  - [x] Bio and custom status messages
+  - [x] Achievement showcase UI
+  - [x] Profile badges and titles
+  - [x] Dedicated customization hub (`/profile/customize`) with quick action entry
 
-- [ ] **Enhanced History & Analytics**
-  - Advanced filters (date range, game type, outcome)
-  - Win/loss streaks tracking
-  - Profit/loss charts
-  - Export history to CSV/JSON
+- [x] **Enhanced History & Analytics** ✅
+  - [x] Advanced filters (date range, game type, outcome)
+  - [x] Win/loss streaks tracking
+  - [x] Profit/loss charts
+  - ~~Export history to CSV/JSON~~ (Not needed)
 
-- [ ] **Level-up Rewards Enhancement**
-  - Tangible rewards for each level milestone
-  - Currency/item rewards upon leveling
-  - Unlockable features at specific levels
-  - Level-up celebration animations
+- [x] **Level-up Rewards Enhancement** ✅
+  - [x] Tangible rewards for each level milestone
+  - [x] Currency/item rewards upon leveling
+  - [x] Unlockable features at specific levels (via achievements)
+  - ~~Level-up celebration animations~~ (Not needed)
 
-- [ ] **Admin Dashboard Upgrade**
-  - Enhanced UI/UX for admin panel
-  - Real-time system metrics
-  - User management interface
-  - Game configuration panel
-  - Transaction monitoring
-  - Advanced reporting tools
+- [x] **Admin Dashboard Upgrade** ✅
+  - [x] Enhanced UI/UX for admin panel
+  - [x] Real-time system metrics
+  - [x] User management interface
+  - [x] Game configuration panel
+  - [x] Transaction monitoring
+  - [x] Advanced reporting tools (integrated into dashboard & metrics)
 
-- [ ] **Social Features - Phase 1**
-  - Friend system (add/remove friends)
-  - Friend list with online status
-  - Private messages
+- [x] **Social Features - Phase 1**
+  - [x] Friend system (add/remove friends)
+  - [x] Friend list with online status
+  - [x] Private messages (friends chat)
   - ~~Friend invitations to battles~~ ✅ **Already implemented via PvP invite**
+  - _Phase 2 targets: read receipts and typing indicators_
 
 #### Medium Priority
 - [ ] **Mobile Optimization**
@@ -74,19 +76,12 @@ This document outlines the planned features and improvements for 4FUNBET platfor
   - Gesture support
   - Performance improvements for mobile devices
 
-- [ ] **Advanced Notification Features**
-  - ~~In-app notifications center~~ ✅ **Already implemented**
-  - ~~Battle invitations~~ ✅ **Already implemented**
-  - Friend requests (depends on friend system)
-  - Achievement unlock notifications
-  - Daily reward reminders
-
-#### Low Priority
-- [ ] **UI Themes**
-  - Dark mode improvements
-  - Light mode option
-  - Custom color schemes
-  - Theme persistence
+- [x] **Advanced Notification Features**
+  - [x] ~~In-app notifications center~~ **Already implemented**
+  - [x] ~~Battle invitations~~ **Already implemented**
+  - [x] Friend requests
+  - [x] Achievement unlock notifications
+  - [x] Daily reward reminders
 
 ---
 
@@ -331,6 +326,18 @@ This document outlines the planned features and improvements for 4FUNBET platfor
   - Skins and themes
   - NFT trading
   - User-generated content
+
+---
+
+## 🧪 Experimental Track (Ongoing)
+
+**Purpose: Rapidly prototype ideas that need telemetry validation before they enter the dated roadmap.**
+
+- [ ] **Co-play Watch Parties** — sync solo runs for spectators with shared emotes and quick-bet overlays.
+- [ ] **Adaptive Difficulty Engine** — ML service that tunes house edge and min/max bets per player risk profile.
+- [ ] **Creator Blueprints** — low-code editor that turns JSON layouts into playable solo game variants in staging.
+- [ ] **Personalized Live Ops Feed** — merges quests, rewards, and shop highlights into a single, intent-aware feed.
+- [ ] **On-chain Identity Bridge** — optional wallet link that signs leaderboard entries for verifiable bragging rights.
 
 ---
 

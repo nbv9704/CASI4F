@@ -4,12 +4,15 @@
 import Link from 'next/link'
 import { Gamepad2, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { toast } from 'react-hot-toast'
 
 import GameCard from '@/components/GameCard'
 import GameDetailModal from '@/components/GameDetailModal'
 import GameFilterBar from '@/components/GameFilterBar'
 import { GAMES } from '@/data/games'
 import { useLocale } from '@/context/LocaleContext'
+import { useGameConfig } from '@/hooks/useGameConfig'
+import LoadingState from '@/components/LoadingState'
 
 export default function GameHubPage() {
   const { t } = useLocale()
@@ -19,6 +22,10 @@ export default function GameHubPage() {
     q: '',
   })
   const [activeGame, setActiveGame] = useState(null)
+  const { loading: configLoading, refreshing: configRefreshing, isGameDisabled, refresh } = useGameConfig()
+  const loadingKey = 'games.page.loading'
+  const loadingMessageRaw = t(loadingKey)
+  const loadingMessage = loadingMessageRaw === loadingKey ? 'Loading games...' : loadingMessageRaw
 
   const filtered = useMemo(() => {
     let list = [...GAMES]
@@ -62,6 +69,10 @@ export default function GameHubPage() {
 
     return list.map(game => ({ ...game, displayName: resolveName(game) }))
   }, [filter, t])
+
+  if (configLoading && !configRefreshing) {
+    return <LoadingState message={loadingMessage} />
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pb-16 pt-8 lg:px-6">
@@ -122,12 +133,23 @@ export default function GameHubPage() {
           {filtered.map((g) => (
             <button
               key={g.id}
-              onClick={() => setActiveGame(g)}
+              onClick={async () => {
+                if (configLoading || configRefreshing) {
+                  toast('Đang kiểm tra trạng thái game...', { icon: '⏳', duration: 1500 })
+                  return
+                }
+                await refresh()
+                if (isGameDisabled(g.id)) {
+                  toast.error('Game đang bị tạm khóa, vui lòng đợi...')
+                  return
+                }
+                setActiveGame(g)
+              }}
               className="text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform hover:scale-105"
               aria-label={t('games.page.previewAria', { name: g.displayName || g.name })}
               type="button"
             >
-              <GameCard mode={g.id} fluid />
+              <GameCard mode={g.id} fluid disabled={!configLoading && isGameDisabled(g.id)} />
             </button>
           ))}
         </div>

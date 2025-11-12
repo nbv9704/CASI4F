@@ -3,6 +3,10 @@ export const SOCKET_EVENTS = {
   REGISTER: 'register',
   NOTIFICATION: 'notification',
 
+  GAME: {
+    CONFIG_UPDATED: 'game:configUpdated',
+  },
+
   PVP: {
     ROOM_UPDATED: 'pvp:roomUpdated',
     ROOM_STARTED: 'pvp:roomStarted',
@@ -12,5 +16,13 @@ export const SOCKET_EVENTS = {
     JOIN_CHANNEL: 'pvp:joinRoomChannel',
     LEAVE_CHANNEL: 'pvp:leaveRoomChannel',
     LIST: 'pvp:list',
+  },
+
+  SOCIAL: {
+    FRIEND_REQUEST: 'friends:request',
+    FRIEND_UPDATE: 'friends:update',
+    FRIEND_REMOVED: 'friends:removed',
+    CHAT_MESSAGE: 'chat:message',
+    CHAT_READ: 'chat:read',
   },
 };

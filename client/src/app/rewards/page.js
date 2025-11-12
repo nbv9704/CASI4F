@@ -4,7 +4,7 @@ import RequireAuth from "@/components/RequireAuth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useApi from "../../hooks/useApi";
 import { useUser } from "../../context/UserContext";
-import Loading from "../../components/Loading";
+import LoadingState from "@/components/LoadingState";
 import { toast } from "react-hot-toast";
 import {
   DAILY_CHECKIN_EXP,
@@ -12,6 +12,7 @@ import {
   getExpToNextLevel,
 } from "../../utils/level";
 import { useLocale } from "../../context/LocaleContext";
+import { Gift } from "lucide-react";
 
 const COOLDOWN_MS = {
   checkin: 24 * 3600 * 1000,
@@ -55,6 +56,14 @@ function RewardsPage() {
   const { get, post } = useApi();
   const { t, locale } = useLocale();
 
+  const resolveMessage = useCallback(
+    (key, fallback) => {
+      const value = t(key);
+      return typeof value === "string" && value !== key ? value : fallback;
+    },
+    [t],
+  );
+
   const numberFormatter = useMemo(
     () => new Intl.NumberFormat(locale || "en-US"),
     [locale],
@@ -80,6 +89,10 @@ function RewardsPage() {
     return { month: now.getMonth(), year: now.getFullYear() };
   });
   const [checkinHistory, setCheckinHistory] = useState([]);
+  const [levelRewards, setLevelRewards] = useState(null);
+  const [levelRewardsLoading, setLevelRewardsLoading] = useState(true);
+  const [levelRewardsError, setLevelRewardsError] = useState("");
+  const [claimingLevel, setClaimingLevel] = useState(null);
 
   const tabOptions = useMemo(
     () => [
@@ -309,6 +322,52 @@ function RewardsPage() {
   }, [get, registerCheckinDate, updateProgress, user?.id]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadLevelRewards = async () => {
+      if (!user?.id) {
+        if (!cancelled) {
+          setLevelRewards(null);
+          setLevelRewardsError("");
+          setLevelRewardsLoading(false);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setLevelRewardsLoading(true);
+        setLevelRewardsError("");
+      }
+
+      try {
+        const data = await get("/rewards/level");
+        if (!cancelled) {
+          setLevelRewards(data || null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLevelRewards(null);
+          setLevelRewardsError(
+            err?.__payload?.message ||
+              err?.message ||
+              t("rewardsPage.levelRewards.error"),
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLevelRewardsLoading(false);
+        }
+      }
+    };
+
+    loadLevelRewards();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, get, t]);
+
+  useEffect(() => {
     const updateTimers = () => {
       const now = Date.now();
       setRemaining(() => {
@@ -380,17 +439,114 @@ function RewardsPage() {
       });
   };
 
-  if (!user) return <Loading text="Vui lòng đăng nhập để xem Rewards." />;
-  if (loading) return <Loading text="Đang tải Rewards…" />;
+    const handleClaimLevelReward = useCallback(
+      async (targetLevel) => {
+        setClaimingLevel(targetLevel);
+        try {
+          const response = await post(`/rewards/level/${targetLevel}`);
 
-  const level = user.level || 1;
-  const experience = Number.isFinite(user.experience) ? user.experience : 0;
-  const nextLevelExp = user.nextLevelExp ?? getExpToNextLevel(level);
-  const isMaxLevel = nextLevelExp == null;
+          setLevelRewards((prev) => {
+            if (!prev) return prev;
+
+            const claimedSet = new Set(
+              Array.isArray(response?.claimed) ? response.claimed : prev.claimed || [],
+            );
+            claimedSet.add(targetLevel);
+
+            const updatedRewards = (prev.rewards || []).map((entry) => {
+              if (!entry) return entry;
+
+              if (claimedSet.has(entry.level) || entry.level === targetLevel) {
+                return { ...entry, status: "claimed" };
+              }
+
+              const currentLevel = response?.level ?? prev.level ?? 0;
+              if (currentLevel >= entry.level && entry.status === "locked") {
+                return { ...entry, status: "available" };
+              }
+
+              return entry;
+            });
+
+            return {
+              ...prev,
+              level: response?.level ?? prev.level,
+              experience: response?.experience ?? prev.experience,
+              nextLevelExp: response?.nextLevelExp ?? prev.nextLevelExp,
+              rewards: updatedRewards,
+              claimed: Array.from(claimedSet).sort((a, b) => a - b),
+            };
+          });
+
+          if (typeof response?.balance === "number") {
+            updateBalance(response.balance);
+          }
+
+          if (
+            Number.isFinite(response?.level) ||
+            Number.isFinite(response?.experience) ||
+            response?.nextLevelExp !== undefined
+          ) {
+            updateProgress({
+              level: response.level,
+              experience: response.experience,
+              nextLevelExp: response.nextLevelExp,
+            });
+          }
+
+          setLevelRewardsError("");
+          toast.success(
+            t("rewardsPage.levelRewards.toastClaimSuccess", { level: targetLevel }),
+          );
+        } catch (err) {
+          const message =
+            err?.__payload?.message ||
+            err?.message ||
+            t("rewardsPage.levelRewards.toastClaimError");
+          toast.error(message);
+        } finally {
+          setClaimingLevel(null);
+        }
+      },
+      [post, updateBalance, updateProgress, t],
+    );
+
+  if (!user) {
+    const loginMessage = resolveMessage(
+      "rewardsPage.loginRequired",
+      "Please sign in to view rewards.",
+    );
+    return <LoadingState message={loginMessage} />;
+  }
+
+  if (loading) {
+    const loadingMessage = resolveMessage(
+      "rewardsPage.loading",
+      "Loading rewards…",
+    );
+    return <LoadingState message={loadingMessage} />;
+  }
+
+  const baseLevel = user.level || 1;
+  const baseExperience = Number.isFinite(user.experience) ? user.experience : 0;
+  const baseNextLevelExp = user.nextLevelExp ?? getExpToNextLevel(baseLevel);
+
+  const effectiveLevel = levelRewards?.level ?? baseLevel;
+  const effectiveExperience = Number.isFinite(levelRewards?.experience)
+    ? levelRewards.experience
+    : baseExperience;
+  const effectiveNextLevelExp =
+    levelRewards?.nextLevelExp !== undefined && levelRewards?.nextLevelExp !== null
+      ? levelRewards.nextLevelExp
+      : baseNextLevelExp;
+
+  const isMaxLevel = effectiveNextLevelExp == null;
   const progressPercent = isMaxLevel
     ? 100
-    : Math.min(100, Math.round((experience / nextLevelExp) * 100));
-  const expRemaining = !isMaxLevel ? Math.max(0, nextLevelExp - experience) : 0;
+    : Math.min(100, Math.round((effectiveExperience / effectiveNextLevelExp) * 100));
+  const expRemaining = !isMaxLevel
+    ? Math.max(0, effectiveNextLevelExp - effectiveExperience)
+    : 0;
   const canInteract = !loading && !fetchError;
 
   const periodicReady = (type) => canInteract && remaining[type] === 0;
@@ -440,7 +596,7 @@ function RewardsPage() {
             </p>
           </div>
           <span className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200">
-            {t("navbar.level.label")} {level}
+            {t("navbar.level.label")} {effectiveLevel}
           </span>
         </div>
         <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-slate-800/80">
@@ -452,7 +608,9 @@ function RewardsPage() {
         <p className="mt-2 text-sm text-slate-200">
           {isMaxLevel
             ? t("navbar.level.maxMessage")
-            : `${numberFormatter.format(experience)} / ${numberFormatter.format(nextLevelExp)} EXP`}
+            : `${numberFormatter.format(effectiveExperience)} / ${numberFormatter.format(
+                effectiveNextLevelExp,
+              )} EXP`}
         </p>
       </div>
 
@@ -702,7 +860,7 @@ function RewardsPage() {
       )}
 
       {activeTab === "level" && (
-        <section className="space-y-5">
+        <section className="space-y-6">
           <div className="max-w-3xl">
             <h2 className="text-xl font-semibold text-white">
               {t("rewardsPage.level.title")}
@@ -722,6 +880,102 @@ function RewardsPage() {
             </p>
           </div>
 
+          {levelRewardsLoading ? (
+            <div className="rounded-2xl border border-slate-800/70 bg-slate-950/70 p-6 text-sm text-white/70 shadow-lg shadow-black/20">
+              <div className="flex items-center gap-2">
+                <Gift className="h-5 w-5 animate-spin text-amber-300" />
+                <span>{t("rewardsPage.levelRewards.loading")}</span>
+              </div>
+            </div>
+          ) : levelRewardsError ? (
+            <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-6 text-sm text-rose-100 shadow-lg shadow-black/20">
+              {levelRewardsError}
+            </div>
+          ) : levelRewards?.rewards?.length ? (
+            <div className="rounded-2xl border border-slate-800/70 bg-slate-950/80 p-6 shadow-lg shadow-black/20">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-amber-200">
+                  <Gift className="h-5 w-5" />
+                  <span>{t("rewardsPage.levelRewards.heading")}</span>
+                </div>
+                <span className="text-xs uppercase tracking-wide text-white/50">
+                  {t("rewardsPage.levelRewards.currentLevel", { level: effectiveLevel })}
+                </span>
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {levelRewards.rewards.map((reward) => {
+                  const coins = reward?.rewards?.coins || 0;
+                  const xp = reward?.rewards?.xp || 0;
+                  const isAvailable = reward?.status === "available";
+                  const isClaimed = reward?.status === "claimed";
+                  const disabled = !isAvailable || claimingLevel === reward.level;
+                  const statusLabel = isClaimed
+                    ? t("rewardsPage.levelRewards.claimed")
+                    : isAvailable
+                      ? t("rewardsPage.levelRewards.available")
+                      : t("rewardsPage.levelRewards.locked");
+                  const badgeClass = isClaimed
+                    ? "border border-emerald-400/40 bg-emerald-500/15 text-emerald-200"
+                    : isAvailable
+                      ? "border border-indigo-400/40 bg-indigo-500/15 text-indigo-200"
+                      : "border border-white/10 bg-slate-800/40 text-slate-300";
+
+                  return (
+                    <article
+                      key={reward.level}
+                      className="flex h-full flex-col justify-between rounded-xl border border-white/10 bg-white/5 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            {t("rewardsPage.levelRewards.levelLabel", { level: reward.level })}
+                          </p>
+                          <p className="text-xs uppercase tracking-wide text-white/50">{statusLabel}</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}>
+                          {statusLabel}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 space-y-1 text-xs text-white/70">
+                        <p>
+                          {t("rewardsPage.levelRewards.rewardCoins", {
+                            amount: numberFormatter.format(coins),
+                            unit: t("common.coins"),
+                          })}
+                        </p>
+                        <p>
+                          {t("rewardsPage.levelRewards.rewardXp", {
+                            amount: numberFormatter.format(xp),
+                          })}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleClaimLevelReward(reward.level)}
+                        disabled={disabled}
+                        className={`mt-4 w-full rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                          disabled
+                            ? "cursor-not-allowed border border-white/10 text-white/40"
+                            : "border border-emerald-400/60 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
+                        }`}
+                      >
+                        {claimingLevel === reward.level
+                          ? t("rewardsPage.levelRewards.claiming")
+                          : t("rewardsPage.levelRewards.claimButton")}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-800/70 bg-slate-950/80 p-6 text-sm text-white/60 shadow-lg shadow-black/20">
+              {t("rewardsPage.levelRewards.empty")}
+            </div>
+          )}
+
           <div className="overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-950/80 shadow-lg shadow-black/20">
             <table className="min-w-full divide-y divide-slate-800/70 text-sm text-slate-200">
               <thead className="bg-slate-900/60 text-xs uppercase tracking-[0.2em] text-slate-400">
@@ -736,7 +990,7 @@ function RewardsPage() {
               </thead>
               <tbody>
                 {LEVEL_TIERS.map((tier) => {
-                  const active = level >= tier.from && level <= tier.to;
+                  const active = effectiveLevel >= tier.from && effectiveLevel <= tier.to;
                   return (
                     <tr
                       key={tier.from}

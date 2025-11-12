@@ -11,8 +11,9 @@ import { useLocale } from '../context/LocaleContext'
  * Props:
  * - mode: string (required) - game id (e.g. "coinflip")
  * - fluid?: boolean — if true the card flexes to parent width
+ * - disabled?: boolean — show locked overlay state
  */
-export default function GameCard({ mode, fluid = false }) {
+export default function GameCard({ mode, fluid = false, disabled = false }) {
   const { theme } = useTheme()
   const { t } = useLocale()
   const [mounted, setMounted] = useState(false)
@@ -55,9 +56,15 @@ export default function GameCard({ mode, fluid = false }) {
 
   return (
     <div
-      className={`${cardWidth} group relative overflow-hidden rounded-3xl border border-neutral-200/70 bg-white/90 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-neutral-800/70 dark:bg-slate-950/70`}
-      aria-label={`${localizedName} card`}
+  className={`${cardWidth} group relative overflow-hidden rounded-3xl border border-neutral-200/70 bg-white/90 shadow-sm transition-all duration-300 ${disabled ? 'opacity-60 grayscale' : 'hover:-translate-y-1 hover:shadow-xl'} dark:border-neutral-800/70 dark:bg-slate-950/70`}
+      aria-label={`${localizedName} card${disabled ? ' (locked)' : ''}`}
     >
+      {disabled && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/65 text-center text-sm font-semibold text-white">
+          <span className="text-lg">🚫</span>
+          <span>Game đang bị tạm khóa</span>
+        </div>
+      )}
       <div className={`absolute inset-0 pointer-events-none bg-gradient-to-br ${gradientOverlay} opacity-80 group-hover:opacity-100 transition`} />
 
       <div className="relative h-40 overflow-hidden">

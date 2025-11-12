@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Flame, Trophy, Users, Wallet } from "lucide-react";
+import LoadingState from "@/components/LoadingState";
 
 import { useLocale } from "@/context/LocaleContext";
 import useApi from "@/hooks/useApi";
@@ -212,9 +213,11 @@ export default function RankingsPage() {
           <span>{t("home.rankings.table.profit")}</span>
         </div>
         {isLoading ? (
-          <div className="px-6 py-10 text-sm text-slate-400">
-            {t("home.rankings.loading")}
-          </div>
+          <LoadingState
+            message={t("home.rankings.loading")}
+            fullscreen={false}
+            className="py-10"
+          />
         ) : error ? (
           <div className="px-6 py-10 text-sm text-rose-200">
             {error}

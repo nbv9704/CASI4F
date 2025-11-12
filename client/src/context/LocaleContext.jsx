@@ -34,12 +34,17 @@ const translations = {
       pageLabel: "Page {{page}} / {{total}}",
     },
     loading: {
+      appShell: "Preparing your experience…",
+      home: "Loading home page…",
+      rankings: "Loading rankings…",
+      rewards: "Loading rewards…",
       auth: "Authenticating session…",
       profile: "Loading profile…",
       settings: "Loading settings…",
       history: "Loading history…",
       walletHistory: "Loading transaction history…",
       notifications: "Loading notifications…",
+    general: "Loading…",
     },
     navbar: {
       walletButton: {
@@ -60,6 +65,8 @@ const translations = {
         rewards: "Rewards",
         rankings: "Rankings",
         profile: "Profile",
+        collections: "Collections",
+        friends: "Friends",
         history: "History",
         settings: "Settings",
       },
@@ -87,26 +94,26 @@ const translations = {
           "Track tournaments, flash events, and seasonal rewards while they are hot.",
         viewAll: "See all updates",
         items: {
-          tournaments: {
-            badge: "PvP spotlight",
-            title: "Dice Poker championship qualifiers are live",
+          presence: {
+            badge: "Status refresh",
+            title: "Auto-expiring statuses keep your crew aligned",
             description:
-              "Win two Dice Poker battles today to secure your finals ticket.",
-            action: "Enter battle lobby",
+              "Online, idle, and busy states now sync across your navbar, profile, and Social hub with optional timers.",
+            action: "Manage your status",
           },
-          rewards: {
-            badge: "Rewards boost",
-            title: "Hourly chest is paying double until midnight",
+          social: {
+            badge: "Social hub",
+            title: "Chat, invite, and manage friends without leaving the lobby",
             description:
-              "Claim the boosted reward streak before the timer resets at 00:00 UTC.",
-            action: "Open rewards center",
+              "The refreshed hub bundles DMs, presence indicators, and quick PvP invites for every table.",
+            action: "Open Social hub",
           },
-          security: {
-            badge: "New feature",
-            title: "One-tap wallet protection is now live",
+          collections: {
+            badge: "Progress boost",
+            title: "Achievement milestones track every clutch run",
             description:
-              "Lock large transfers behind a PIN challenge and keep your coins secure.",
-            action: "Review security tips",
+              "Showcase slots and milestone tiers make it easy to celebrate streaks, jackpots, and rare badges.",
+            action: "View collections",
           },
         },
       },
@@ -126,7 +133,7 @@ const translations = {
         },
         invite: {
           title: "Invite friends",
-          description: "Send instant PvP room invites and climb together.",
+          description: "Jump into the Social hub for instant PvP invites and live chat.",
         },
       },
       rankings: {
@@ -139,9 +146,9 @@ const translations = {
           weekly: "Weekly",
           monthly: "Monthly",
         },
-        showing: "Showing {{period}} leaderboard",
-        empty: "No players have joined the leaderboard yet.",
-  loading: "Loading leaderboard...",
+    showing: "Showing {{period}} leaderboard",
+    empty: "No players have joined the leaderboard yet.",
+    loading: "Loading leaderboard…",
         error: "Failed to load the leaderboard. Please try again later.",
         table: {
           rank: "Rank",
@@ -156,6 +163,72 @@ const translations = {
           profit: "Total profit",
           bestStreak: "Best win streak",
         },
+      },
+    },
+    admin: {
+      loading: "Loading dashboard…",
+      accessDenied: {
+        title: "Access denied",
+        description: "You don't have permission to access this page.",
+      },
+      error: {
+        title: "Error",
+        description: "Failed to load dashboard.",
+        retry: "Retry",
+      },
+      header: {
+        title: "Admin dashboard",
+        subtitle: "System overview and management",
+      },
+      stats: {
+        totalUsers: {
+          label: "Total users",
+          subtitle: "{{count}} new today",
+        },
+        activeRooms: {
+          label: "Active PvP rooms",
+          subtitle: "Live matches",
+        },
+        totalBalance: {
+          label: "Total balance",
+          subtitle: "System coins",
+        },
+        transactions: {
+          label: "Transactions (24h)",
+          subtitle: "Last 24 hours",
+        },
+      },
+      management: {
+        user: {
+          title: "User management",
+          description: "Manage users, roles, and permissions.",
+        },
+        metrics: {
+          title: "System metrics",
+          description: "Monitor server health and performance.",
+        },
+        transactions: {
+          title: "Transactions",
+          description: "View and monitor all transactions.",
+        },
+        games: {
+          title: "Game config",
+          description: "Configure game settings and parameters.",
+        },
+        reports: {
+          title: "Reports",
+          description: "Generate and view system reports.",
+        },
+      },
+      recentUsers: {
+        title: "Recent users",
+        empty: "No recent users.",
+        joined: "Joined {{date}}",
+      },
+      topBalances: {
+        title: "Top balances",
+        empty: "No data available.",
+        level: "Level {{level}}",
       },
     },
     footer: {
@@ -327,12 +400,22 @@ const translations = {
     profile: {
       loading: "Loading profile…",
       heroAccent: "Player profile",
+      levelProgressValue: "{{current}} / {{total}} XP",
+      levelMax: "Max level reached",
       accountInfo: "Account information",
       emailFallback: "Not provided yet",
       birthDate: "Date of birth",
       birthDateFallback: "Not provided yet",
-      status: "Status",
-      statusValue: "Account in good standing",
+      status: {
+        label: "Status",
+        states: {
+          online: "Online",
+          idle: "Idle",
+          busy: "Do not disturb",
+          offline: "Offline",
+        },
+        expiresAt: "Auto-clears at {{time}}",
+      },
       security: "Security",
       securityValue: "Consider updating your password every 30 days.",
       quickActions: "Quick actions",
@@ -344,6 +427,225 @@ const translations = {
         "Enable notifications to receive important updates.",
         "Review your transaction history regularly.",
       ],
+      bio: {
+        heading: "About",
+        empty: "You have not added a bio yet.",
+      },
+      socials: {
+        heading: "Social links",
+        empty: "Add social profiles so friends can follow your streams and updates.",
+        visit: "Open",
+        labels: {
+          discord: "Discord",
+          twitter: "Twitter / X",
+          twitch: "Twitch",
+          youtube: "YouTube",
+        },
+      },
+      showcase: {
+        heading: "Achievement showcase",
+        empty: "Select achievements to display them here.",
+      },
+      achievements: {
+        heading: "Achievements",
+        summary: "{{completed}} / {{total}} completed",
+        completed: "Completed",
+        locked: "Locked",
+        empty: "You have not unlocked any achievements yet.",
+        earnedOn: "Earned on {{date}}",
+      },
+      collections: {
+        heading: "Collections",
+        tabs: {
+          achievements: "Achievements",
+          inventory: "Inventory",
+        },
+        achievementsSummary: "{{completed}} / {{total}} achievements unlocked",
+        achievementNoDescription: "No description provided.",
+        achievementCompleted: "Completed",
+        achievementLocked: "Locked",
+        achievementsEmpty: "You have not unlocked any achievements yet.",
+        unlockedAt: "Unlocked on {{date}}",
+        badgeReward: "Rewards badge: {{badge}}",
+        badgeTier: "Tier: {{tier}}",
+        badgeOwned: "Owned",
+        badgeOwnedSince: "Owned since {{date}}",
+        badgeLocked: "Locked — reach the requirement to unlock.",
+        inventoryEmpty: "Your inventory is empty for now.",
+        quickAction: "Open collections hub",
+      },
+      stats: {
+        heading: "Profile stats",
+        achievements: "Achievements",
+        badges: "Badges",
+      },
+      badges: {
+        heading: "Badges",
+        active: "Active badge",
+        owned: "Owned",
+        empty: "You do not own any badges yet.",
+        none: "No badge equipped",
+      },
+      customize: {
+        heroAccent: "Profile customization",
+        quickAction: "Customize profile",
+        heading: "Customize profile",
+        description: "Update your profile details, social links, and showcase.",
+        identitySection: "Profile identity",
+        socialSection: "Social presence",
+        optionalLabel: "Optional",
+        backToProfile: "Back to profile",
+        cancelButton: "Discard",
+        bioLabel: "Bio",
+        bioPlaceholder: "Share a short introduction about yourself…",
+        statusStateLabel: "Status",
+        statusStateHint: "Choose how others see your availability.",
+        statusMessageLabel: "Status message",
+        statusMessagePlaceholder: "Share a quick update…",
+        statusMessageHint: "Status messages disappear when their timer runs out.",
+        statusDurationLabel: "Auto-clear after",
+        statusDuration: {
+          options: {
+            30: "30 minutes",
+            60: "1 hour",
+            240: "4 hours",
+            1440: "24 hours",
+          },
+        },
+        statusDurationHintActive:
+          "Message clears in {{duration}} unless you update it sooner.",
+        statusDurationHintDisabled: "Add a status message to enable auto-clear.",
+        visibilityLabel: "Profile visibility",
+        visibility: {
+          public: "Public",
+          friends: "Friends only",
+          private: "Private",
+        },
+        activeBadgeLabel: "Active badge",
+        activeBadgeNone: "No badge",
+        socialLinksLabel: "Social handles & URLs",
+        socialLinksHint:
+          "Add URLs or @handles. We support Discord, Twitter, Twitch, and YouTube.",
+        showcaseLabel: "Achievement showcase",
+        showcaseHint: "Select up to {{limit}} achievements to pin.",
+        showcaseSelected: "{{count}} / {{limit}} selected",
+        showcaseEmpty: "Unlock achievements to pin them here.",
+        saveButton: "Save changes",
+        saving: "Saving…",
+        toastSuccess: "Profile updated successfully!",
+        toastShowcaseLimit: "You can only showcase {{limit}} achievements.",
+      },
+      public: {
+        heroLabel: "Player spotlight",
+        visibility: "Visibility: {{mode}}",
+        memberSince: "Member since {{date}}",
+        manageOwn: "Manage your profile",
+        metaHeading: "Profile details",
+        joinedLabel: "Joined",
+        notFound: "Profile not found",
+        invalidUsername: "We could not parse that profile URL.",
+        private: "This profile is private",
+        privateDescription: "The owner only shares their profile with approved viewers.",
+        unauthorized: "Authentication required",
+        unauthorizedDescription: "Please sign in again to view this profile.",
+        errorTitle: "Unable to load profile",
+        errorDescription: "Something went wrong while loading the profile.",
+        networkError: "Network error. Check your connection and try again.",
+        retry: "Retry",
+        back: "Back to lobby",
+      },
+    },
+    collections: {
+      heading: "Collections hub",
+      subtitle: "Review achievements and manage owned rewards in one place.",
+      loading: "Loading collections…",
+      back: "Back to profile",
+      stats: {
+        achievements: "{{completed}} / {{total}} achievements unlocked",
+        badges: "{{count}} badges owned",
+      },
+      catalog: {
+        achievements: {
+          LEVEL_5: {
+            name: "Hardened Rookie",
+            description: "Reach level 5 and unlock your first perks.",
+          },
+          LEVEL_10: {
+            name: "Seasoned Challenger",
+            description: "Push onward to reach level 10.",
+          },
+          LEVEL_20: {
+            name: "4FUN Legend",
+            description: "Hit level 20 and become a casino icon.",
+          },
+          COINFLIP_ROOKIE: {
+            name: "Coinflip Rookie",
+            description: "Get comfortable with Coinflip by playing 200 rounds.",
+          },
+          COINFLIP_VETERAN: {
+            name: "Coinflip Veteran",
+            description: "Conquer 500 Coinflip rounds.",
+          },
+          COINFLIP_LEGEND: {
+            name: "Coinflip Legend",
+            description: "Play 1,000 Coinflip rounds to claim the ultimate badge.",
+          },
+          COINFLIP_CHAMPION: {
+            name: "Coinflip Champion",
+            description: "Win 250 Coinflip rounds.",
+          },
+          COINFLIP_CONQUEROR: {
+            name: "Coinflip Conqueror",
+            description: "Win 750 Coinflip rounds and prove elite mastery.",
+          },
+          CHECKIN_STARTER: {
+            name: "Habit Builder",
+            description: "Claim the daily login reward for seven days.",
+          },
+          CHECKIN_VETERAN: {
+            name: "Check-in Veteran",
+            description: "Stay consistent with 30 daily login rewards claimed.",
+          },
+          REWARD_HUNTER: {
+            name: "Reward Hunter",
+            description: "Grab the daily reward 30 times.",
+          },
+          REWARD_COLLECTOR: {
+            name: "Reward Collector",
+            description: "Collect the daily reward 100 times.",
+          },
+          SOCIAL_STARTER: {
+            name: "First Connections",
+            description: "Add five players as friends.",
+          },
+          SOCIAL_BUTTERFLY: {
+            name: "4FUN Networker",
+            description: "Add 25 players as friends and grow your community.",
+          },
+        },
+        badges: {
+          THE_FLIPPER: {
+            name: "The Flipper",
+            description: "Complete the highest Coinflip milestone to prove your coin mastery.",
+          },
+          LUCKY_STREAK: {
+            name: "Lucky Streak",
+            description: "Maintain the longest Coinflip win streak and keep the momentum going.",
+          },
+          LOYAL_VISITOR: {
+            name: "Loyal Visitor",
+            description: "Log in for daily rewards long enough to become a club regular.",
+          },
+          TREASURE_HUNTER: {
+            name: "Treasure Hunter",
+            description: "Never miss a daily reward and sweep every giveaway.",
+          },
+          SOCIAL_STAR: {
+            name: "Social Star",
+            description: "Build your network across the 4FUN lobby and stay in the spotlight.",
+          },
+        },
+      },
     },
     history: {
       loginRequired: "Please sign in to view your history.",
@@ -353,10 +655,17 @@ const translations = {
         title: "Game History",
         subtitle: "Showing page {{page}}/{{total}} — {{count}} games in total.",
       },
+      error: {
+        generic: "Unable to load your history. Please try again later.",
+        analytics: "Unable to load analytics right now. Try refreshing in a moment.",
+      },
       stats: {
         wins: "Wins (this page)",
         bets: "Wagered (this page)",
         payout: "Payout (this page)",
+        winRate: "Win rate",
+        netProfit: "Net profit",
+        totalXp: "Experience earned",
       },
       pagination: {
         prev: "← Previous page",
@@ -369,7 +678,44 @@ const translations = {
         stakeLabel: "Stake",
         payoutLabel: "Return",
         performance: "Net result",
+        xpGain: "XP gain",
         unknown: "Unknown",
+      },
+      filters: {
+        heading: "Filters",
+        from: "From date",
+        to: "To date",
+        game: "Game",
+        allGames: "All games",
+        outcome: "Outcome",
+        outcomes: {
+          all: "All outcomes",
+          win: "Wins",
+          lose: "Losses",
+          tie: "Ties",
+        },
+        apply: "Apply filters",
+        applying: "Applying…",
+        reset: "Reset",
+      },
+      analytics: {
+        heading: "Performance overview",
+        loading: "Crunching your match data…",
+        rounds: "Rounds: {{count}}",
+        currentStreak: "Current streak",
+        streakWins: "wins",
+        streakLosses: "losses",
+        noStreak: "No active streak",
+        longestWin: "Best win streak",
+        longestLose: "Longest losing streak",
+        totalRounds: "Total rounds played",
+        timelineEmpty: "No timeline data for the selected filters.",
+        xp: "XP: {{value}}",
+        gamesEmpty: "No games to display yet.",
+        gamesHeading: "Top games",
+        betTotal: "Bet: {{amount}} {{unit}}",
+        profitTotal: "Profit: {{amount}}",
+        xpTotal: "XP: {{value}}",
       },
       outcome: {
         win: "Win",
@@ -491,6 +837,61 @@ const translations = {
         markAll: "Mark all as read",
       },
     },
+    friends: {
+      header: {
+        accent: "Social hub",
+        title: "Stay connected",
+        subtitle: "Manage friend requests, see who is online, and chat in real time.",
+      },
+      addForm: {
+        label: "Add a friend by username",
+        placeholder: "Enter username…",
+        button: "Send request",
+        helper: "Use their exact username. Requests are delivered instantly.",
+      },
+      requests: {
+        incoming: "Incoming requests",
+        outgoing: "Pending requests",
+        accept: "Accept",
+        reject: "Reject",
+        cancel: "Cancel",
+        emptyIncoming: "No incoming requests right now.",
+        emptyOutgoing: "You have not sent any requests yet.",
+      },
+      list: {
+        heading: "Friends",
+        searchPlaceholder: "Search friends…",
+        empty: "Add a friend to start chatting.",
+  emptySearch: "No friends match your search.",
+        online: "Online",
+        offline: "Offline",
+        remove: "Remove",
+      },
+      chat: {
+        heading: "Messages",
+        placeholder: "Type a message…",
+        send: "Send",
+        empty: "No messages yet — say hi!",
+        selectPrompt: "Select a friend to view your conversation.",
+        loading: "Loading conversation…",
+        loadError: "Could not load messages.",
+        loadPrevious: "Load previous messages",
+      },
+      status: {
+        pending: "Pending",
+        accepted: "Friends",
+      },
+      toasts: {
+        requestSent: "Friend request sent",
+        requestAccepted: "Friend request accepted",
+        requestCanceled: "Friend request cancelled",
+        friendRemoved: "Friend removed",
+        messageFailed: "Message could not be sent",
+      },
+      errors: {
+        load: "Unable to load friends right now.",
+      },
+    },
     rewardsPage: {
       header: {
         accent: "Rewards hub",
@@ -498,6 +899,8 @@ const translations = {
         subtitle:
           "Collect timed drops, keep your daily streak alive, and monitor level-up milestones in one place.",
       },
+      loading: "Loading rewards…",
+      loginRequired: "Please sign in to view rewards.",
       tabs: {
         periodic: "Periodic rewards",
         checkin: "Daily check-in",
@@ -565,6 +968,23 @@ const translations = {
           exp: "EXP to level up",
         },
       },
+      levelRewards: {
+        loading: "Loading level rewards…",
+        error: "Unable to load level rewards right now.",
+        heading: "Level-up rewards",
+        currentLevel: "Level {{level}}",
+        levelLabel: "Level {{level}}",
+        claimed: "Claimed",
+        available: "Available",
+        locked: "Locked",
+        rewardCoins: "{{amount}} {{unit}}",
+        rewardXp: "{{amount}} XP",
+        claimButton: "Claim reward",
+        claiming: "Claiming…",
+        toastClaimSuccess: "Level {{level}} reward claimed!",
+        toastClaimError: "Unable to claim this reward. Please try again.",
+        empty: "No level rewards configured yet.",
+      },
     },
     games: {
       common: {
@@ -577,6 +997,7 @@ const translations = {
           "Filter by mode, compare minimum stakes, and dive into provably fair matches.",
         explorerHint:
           "Browse the collection below and preview details before you jump in.",
+        loading: "Loading games…",
         viewSolo: "Solo lobby",
         viewBattle: "Battle lobby",
         emptyTitle: "No games match your filters right now.",
@@ -652,6 +1073,7 @@ const translations = {
           description:
             "Pick safe tiles on a 15x15 grid — avoid the hidden mines.",
         },
+          friends: "Bạn bè",
         tower: {
           name: "Tower",
           description:
@@ -742,12 +1164,17 @@ const translations = {
       pageLabel: "Trang {{page}} / {{total}}",
     },
     loading: {
+      appShell: "Đang chuẩn bị trải nghiệm…",
+      home: "Đang tải trang chủ…",
+      rankings: "Đang tải bảng xếp hạng…",
+      rewards: "Đang tải Rewards…",
       auth: "Đang xác thực phiên đăng nhập…",
       profile: "Đang tải trang cá nhân…",
       settings: "Đang tải trang cài đặt…",
       history: "Đang tải lịch sử…",
       walletHistory: "Đang tải lịch sử giao dịch…",
       notifications: "Đang tải thông báo…",
+  general: "Đang tải…",
     },
     navbar: {
       walletButton: {
@@ -765,6 +1192,8 @@ const translations = {
         rewards: "Phần thưởng",
   rankings: "Xếp hạng",
         profile: "Hồ sơ",
+        collections: "Bộ sưu tập",
+        friends: "Bạn bè",
         history: "Lịch sử",
         settings: "Cài đặt",
       },
@@ -792,26 +1221,26 @@ const translations = {
           "Theo dõi giải đấu, sự kiện chớp nhoáng và thưởng theo mùa khi còn hiệu lực.",
         viewAll: "Xem tất cả cập nhật",
         items: {
-          tournaments: {
-            badge: "Điểm nhấn PvP",
-            title: "Vòng loại Dice Poker đã mở",
+          presence: {
+            badge: "Trạng thái mới",
+            title: "Trạng thái tự xoá giúp nhóm luôn đồng bộ",
             description:
-              "Thắng 2 trận Dice Poker hôm nay để giành vé chung kết.",
-            action: "Vào sảnh PvP",
+              "Online, rảnh, bận cùng tin nhắn tuỳ chọn đồng bộ giữa navbar, hồ sơ và Social hub, tự xoá khi hết giờ.",
+            action: "Cập nhật trạng thái",
           },
-          rewards: {
-            badge: "Tăng thưởng",
-            title: "Rương theo giờ nhân đôi tới 24h",
+          social: {
+            badge: "Social hub",
+            title: "Chat, mời trận và quản lý bạn bè ngay trong sảnh",
             description:
-              "Nhanh tay nhận thưởng trước khi bộ đếm quay về 00:00 UTC.",
-            action: "Mở trung tâm phần thưởng",
+              "Trung tâm mới gom DM, trạng thái và lời mời PvP tức thì cho mọi bàn đấu.",
+            action: "Vào Social hub",
           },
-          security: {
-            badge: "Tính năng mới",
-            title: "Bảo vệ ví một chạm đã khả dụng",
+          collections: {
+            badge: "Tiến độ",
+            title: "Mốc thành tựu ghi dấu mọi pha bùng nổ",
             description:
-              "Khóa giao dịch lớn bằng mã PIN để giữ an toàn cho số dư.",
-            action: "Xem mẹo bảo mật",
+              "Khung trưng bày và mốc điểm mới giúp bạn khoe chuỗi thắng, jackpot và huy hiệu hiếm.",
+            action: "Xem bộ sưu tập",
           },
         },
       },
@@ -831,7 +1260,7 @@ const translations = {
         },
         invite: {
           title: "Mời bạn bè",
-          description: "Gửi lời mời PvP tức thì, leo hạng cùng nhau.",
+          description: "Vào Social hub để gửi lời mời PvP và trò chuyện tức thì.",
         },
       },
       rankings: {
@@ -845,8 +1274,8 @@ const translations = {
           monthly: "theo tháng",
         },
         showing: "Đang hiển thị bảng {{period}}",
-        empty: "Hiện chưa có ai tham gia bảng xếp hạng.",
-        loading: "Đang tải bảng xếp hạng...",
+  empty: "Hiện chưa có ai tham gia bảng xếp hạng.",
+  loading: "Đang tải bảng xếp hạng…",
         error: "Không thể tải bảng xếp hạng. Vui lòng thử lại sau.",
         table: {
           rank: "Hạng",
@@ -861,6 +1290,72 @@ const translations = {
           profit: "Tổng lợi nhuận",
           bestStreak: "Chuỗi thắng cao nhất",
         },
+      },
+    },
+    admin: {
+      loading: "Đang tải bảng điều khiển…",
+      accessDenied: {
+        title: "Từ chối truy cập",
+        description: "Bạn không có quyền truy cập trang này.",
+      },
+      error: {
+        title: "Lỗi",
+        description: "Không thể tải bảng điều khiển.",
+        retry: "Thử lại",
+      },
+      header: {
+        title: "Bảng điều khiển quản trị",
+        subtitle: "Tổng quan hệ thống và các công cụ quản lý",
+      },
+      stats: {
+        totalUsers: {
+          label: "Tổng người dùng",
+          subtitle: "{{count}} tài khoản mới hôm nay",
+        },
+        activeRooms: {
+          label: "Phòng PvP đang hoạt động",
+          subtitle: "Trận đấu trực tuyến",
+        },
+        totalBalance: {
+          label: "Tổng số dư",
+          subtitle: "Xu trong hệ thống",
+        },
+        transactions: {
+          label: "Giao dịch (24h)",
+          subtitle: "24 giờ gần nhất",
+        },
+      },
+      management: {
+        user: {
+          title: "Quản lý người dùng",
+          description: "Quản lý tài khoản, vai trò và quyền hạn.",
+        },
+        metrics: {
+          title: "Chỉ số hệ thống",
+          description: "Theo dõi sức khỏe máy chủ và hiệu năng.",
+        },
+        transactions: {
+          title: "Giao dịch",
+          description: "Xem và kiểm soát mọi giao dịch.",
+        },
+        games: {
+          title: "Cấu hình trò chơi",
+          description: "Thiết lập thông số và quy tắc trò chơi.",
+        },
+        reports: {
+          title: "Báo cáo",
+          description: "Tạo và xem báo cáo hệ thống.",
+        },
+      },
+      recentUsers: {
+        title: "Người dùng mới",
+        empty: "Chưa có người dùng mới.",
+        joined: "Tham gia {{date}}",
+      },
+      topBalances: {
+        title: "Top số dư",
+        empty: "Chưa có dữ liệu.",
+        level: "Cấp {{level}}",
       },
     },
     footer: {
@@ -1011,12 +1506,22 @@ const translations = {
     profile: {
       loading: "Đang tải trang cá nhân…",
       heroAccent: "Hồ sơ người chơi",
+      levelProgressValue: "{{current}} / {{total}} kinh nghiệm",
+      levelMax: "Đã đạt cấp tối đa",
       accountInfo: "Thông tin tài khoản",
       emailFallback: "Chưa cập nhật",
       birthDate: "Ngày sinh",
       birthDateFallback: "Chưa cập nhật",
-      status: "Trạng thái",
-      statusValue: "Tài khoản hoạt động bình thường",
+      status: {
+        label: "Trạng thái",
+        states: {
+          online: "Trực tuyến",
+          idle: "Đang rảnh",
+          busy: "Đang bận",
+          offline: "Ngoại tuyến",
+        },
+        expiresAt: "Tự xoá lúc {{time}}",
+      },
       security: "Bảo mật",
       securityValue: "Nên đổi mật khẩu định kỳ 30 ngày.",
       quickActions: "Hành động nhanh",
@@ -1028,6 +1533,224 @@ const translations = {
         "Kích hoạt thông báo để nhận tin quan trọng.",
         "Kiểm tra lịch sử giao dịch định kỳ.",
       ],
+      bio: {
+        heading: "Giới thiệu",
+        empty: "Bạn chưa viết đoạn giới thiệu nào.",
+      },
+      socials: {
+        heading: "Liên kết",
+        empty: "Hãy thêm các kênh của bạn để bạn bè theo dõi dễ dàng hơn.",
+        visit: "Mở",
+        labels: {
+          discord: "Discord",
+          twitter: "Twitter / X",
+          twitch: "Twitch",
+          youtube: "YouTube",
+        },
+      },
+      showcase: {
+        heading: "Thành tựu ghim",
+        empty: "Chưa có thành tựu nào được ghim.",
+      },
+      achievements: {
+        heading: "Thành tựu",
+        summary: "Hoàn thành {{completed}} / {{total}}",
+        completed: "Đã hoàn thành",
+        locked: "Chưa đạt",
+        empty: "Bạn chưa mở khóa thành tựu nào.",
+        earnedOn: "Hoàn thành ngày {{date}}",
+      },
+      collections: {
+        heading: "Bộ sưu tập",
+        tabs: {
+          achievements: "Thành tựu",
+          inventory: "Kho đồ",
+        },
+        achievementsSummary: "Đã mở {{completed}} / {{total}} thành tựu",
+        achievementNoDescription: "Chưa có mô tả.",
+        achievementCompleted: "Đã hoàn thành",
+        achievementLocked: "Chưa mở khóa",
+        achievementsEmpty: "Bạn chưa mở khóa thành tựu nào.",
+        unlockedAt: "Mở khóa ngày {{date}}",
+        badgeReward: "Nhận huy hiệu: {{badge}}",
+        badgeTier: "Bậc: {{tier}}",
+        badgeOwned: "Đã sở hữu",
+        badgeOwnedSince: "Sở hữu từ {{date}}",
+        badgeLocked: "Chưa sở hữu — hãy đạt điều kiện để mở.",
+        inventoryEmpty: "Kho đồ của bạn hiện đang trống.",
+        quickAction: "Mở bộ sưu tập",
+      },
+      stats: {
+        heading: "Thống kê hồ sơ",
+        achievements: "Thành tựu",
+        badges: "Huy hiệu",
+      },
+      badges: {
+        heading: "Huy hiệu",
+        active: "Huy hiệu đang dùng",
+        owned: "Đang sở hữu",
+        empty: "Bạn chưa sở hữu huy hiệu nào.",
+        none: "Không dùng huy hiệu",
+      },
+      customize: {
+        heroAccent: "Tùy chỉnh hồ sơ",
+        quickAction: "Tùy chỉnh hồ sơ",
+        heading: "Tùy chỉnh hồ sơ",
+        description: "Chỉnh sửa thông tin cá nhân, liên kết mạng xã hội và thành tựu ghim.",
+        identitySection: "Nhận diện hồ sơ",
+        socialSection: "Hiện diện mạng xã hội",
+        optionalLabel: "Không bắt buộc",
+        backToProfile: "Quay lại hồ sơ",
+        cancelButton: "Hủy",
+        bioLabel: "Giới thiệu",
+        bioPlaceholder: "Chia sẻ đôi điều về bạn…",
+        statusStateLabel: "Trạng thái",
+        statusStateHint: "Chọn cách bạn xuất hiện với mọi người.",
+        statusMessageLabel: "Thông điệp trạng thái",
+        statusMessagePlaceholder: "Chia sẻ nhanh hôm nay bạn đang làm gì…",
+        statusMessageHint: "Thông điệp sẽ tự xoá khi hết thời gian.",
+        statusDurationLabel: "Tự xoá sau",
+        statusDuration: {
+          options: {
+            30: "30 phút",
+            60: "1 giờ",
+            240: "4 giờ",
+            1440: "24 giờ",
+          },
+        },
+        statusDurationHintActive:
+          "Thông điệp sẽ xoá sau {{duration}} nếu bạn không thay đổi.",
+        statusDurationHintDisabled: "Nhập thông điệp để bật tự xoá.",
+        visibilityLabel: "Chế độ hiển thị",
+        visibility: {
+          public: "Công khai",
+          friends: "Bạn bè",
+          private: "Riêng tư",
+        },
+        activeBadgeLabel: "Huy hiệu đang dùng",
+        activeBadgeNone: "Không dùng",
+        socialLinksLabel: "Liên kết/handle mạng xã hội",
+        socialLinksHint: "Nhập URL hoặc @handle. Hỗ trợ Discord, Twitter, Twitch, YouTube.",
+        showcaseLabel: "Ghim thành tựu",
+        showcaseHint: "Chọn tối đa {{limit}} thành tựu.",
+        showcaseSelected: "Đã chọn {{count}} / {{limit}}",
+        showcaseEmpty: "Hãy mở khóa thành tựu để ghim.",
+        saveButton: "Lưu thay đổi",
+        saving: "Đang lưu…",
+        toastSuccess: "Cập nhật hồ sơ thành công!",
+        toastShowcaseLimit: "Bạn chỉ được ghim tối đa {{limit}} thành tựu.",
+      },
+      public: {
+        heroLabel: "Hồ sơ nổi bật",
+        visibility: "Chế độ hiển thị: {{mode}}",
+        memberSince: "Thành viên từ {{date}}",
+        manageOwn: "Quản lý hồ sơ của bạn",
+        metaHeading: "Thông tin hồ sơ",
+        joinedLabel: "Tham gia",
+        notFound: "Không tìm thấy hồ sơ",
+        invalidUsername: "Không thể xác định tên người dùng trong liên kết này.",
+        private: "Hồ sơ này đang để riêng tư",
+        privateDescription: "Chỉ chủ sở hữu hoặc người được cho phép mới xem được hồ sơ này.",
+        unauthorized: "Cần đăng nhập",
+        unauthorizedDescription: "Hãy đăng nhập lại để xem hồ sơ này.",
+        errorTitle: "Không thể tải hồ sơ",
+        errorDescription: "Đã xảy ra lỗi khi tải hồ sơ này.",
+        networkError: "Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.",
+        retry: "Thử lại",
+        back: "Quay lại sảnh",
+      },
+    },
+    collections: {
+      heading: "Trung tâm bộ sưu tập",
+      subtitle: "Xem lại thành tựu và quản lý huy hiệu đang sở hữu tại một nơi.",
+      loading: "Đang tải bộ sưu tập…",
+      back: "Quay lại hồ sơ",
+      stats: {
+        achievements: "Đã mở {{completed}} / {{total}} thành tựu",
+        badges: "Đang sở hữu {{count}} huy hiệu",
+      },
+      catalog: {
+        achievements: {
+          LEVEL_5: {
+            name: "Tân binh cứng cáp",
+            description: "Đạt cấp 5 và mở khóa những lợi ích đầu tiên.",
+          },
+          LEVEL_10: {
+            name: "Chiến binh kỳ cựu",
+            description: "Tiếp tục luyện tập để chạm tới cấp 10.",
+          },
+          LEVEL_20: {
+            name: "Huyền thoại 4FUN",
+            description: "Cán mốc cấp 20 và trở thành biểu tượng của sòng bạc.",
+          },
+          COINFLIP_ROOKIE: {
+            name: "Coinflip Rookie",
+            description: "Làm quen với Coinflip bằng cách chơi 200 ván.",
+          },
+          COINFLIP_VETERAN: {
+            name: "Coinflip Veteran",
+            description: "Chinh phục 500 ván Coinflip.",
+          },
+          COINFLIP_LEGEND: {
+            name: "Coinflip Legend",
+            description: "Chơi 1.000 ván Coinflip để nhận huy hiệu tối thượng.",
+          },
+          COINFLIP_CHAMPION: {
+            name: "Coinflip Champion",
+            description: "Giành chiến thắng 250 ván Coinflip.",
+          },
+          COINFLIP_CONQUEROR: {
+            name: "Coinflip Conqueror",
+            description: "Chiến thắng 750 ván Coinflip và chứng tỏ đẳng cấp đỉnh cao.",
+          },
+          CHECKIN_STARTER: {
+            name: "Thói quen mới",
+            description: "Nhận thưởng đăng nhập 7 ngày.",
+          },
+          CHECKIN_VETERAN: {
+            name: "Nghiện check-in",
+            description: "Kiên trì nhận thưởng đăng nhập 30 ngày.",
+          },
+          REWARD_HUNTER: {
+            name: "Thợ săn quà",
+            description: "Nhận thưởng hằng ngày 30 lần.",
+          },
+          REWARD_COLLECTOR: {
+            name: "Nhà sưu tầm phần thưởng",
+            description: "Thu thập thưởng hằng ngày 100 lần.",
+          },
+          SOCIAL_STARTER: {
+            name: "Kết nối đầu tiên",
+            description: "Kết bạn thành công với 5 người chơi.",
+          },
+          SOCIAL_BUTTERFLY: {
+            name: "Mạng lưới 4FUN",
+            description: "Kết bạn thành công với 25 người chơi.",
+          },
+        },
+        badges: {
+          THE_FLIPPER: {
+            name: "The Flipper",
+            description: "Hoàn thành mốc Coinflip cao nhất để chứng tỏ bạn là bậc thầy tung đồng xu.",
+          },
+          LUCKY_STREAK: {
+            name: "Lucky Streak",
+            description: "Giành chuỗi chiến thắng Coinflip dài nhất và giữ vững phong độ.",
+          },
+          LOYAL_VISITOR: {
+            name: "Loyal Visitor",
+            description: "Đăng nhập nhận thưởng hằng ngày đủ lâu để trở thành khách quen của CASI4F.",
+          },
+          TREASURE_HUNTER: {
+            name: "Treasure Hunter",
+            description: "Không bỏ lỡ bất kỳ phần thưởng hằng ngày nào và gom hết quà tặng.",
+          },
+          SOCIAL_STAR: {
+            name: "Social Star",
+            description: "Kết bạn khắp nơi trong sảnh 4FUN và xây dựng mạng lưới riêng.",
+          },
+        },
+      },
     },
     history: {
       loginRequired: "Vui lòng đăng nhập để xem lịch sử chơi.",
@@ -1058,10 +1781,17 @@ const translations = {
         subtitle:
           "Hiển thị dữ liệu trang {{page}}/{{total}} — tổng {{count}} ván.",
       },
+      error: {
+        generic: "Không thể tải lịch sử. Vui lòng thử lại sau.",
+        analytics: "Chưa thể tải thống kê. Vui lòng thử lại trong giây lát.",
+      },
       stats: {
         wins: "Thắng (trang này)",
         bets: "Cược (trang này)",
         payout: "Payout (trang này)",
+        winRate: "Tỷ lệ thắng",
+        netProfit: "Lợi nhuận ròng",
+        totalXp: "Kinh nghiệm nhận được",
       },
       pagination: {
         prev: "← Trang trước",
@@ -1074,7 +1804,44 @@ const translations = {
         stakeLabel: "Tiền cược",
         payoutLabel: "Nhận về",
         performance: "Hiệu suất",
+        xpGain: "Kinh nghiệm",
         unknown: "Không rõ",
+      },
+      filters: {
+        heading: "Bộ lọc",
+        from: "Từ ngày",
+        to: "Đến ngày",
+        game: "Trò chơi",
+        allGames: "Tất cả trò chơi",
+        outcome: "Kết quả",
+        outcomes: {
+          all: "Tất cả",
+          win: "Thắng",
+          lose: "Thua",
+          tie: "Hoà",
+        },
+        apply: "Áp dụng",
+        applying: "Đang áp dụng…",
+        reset: "Đặt lại",
+      },
+      analytics: {
+        heading: "Thống kê thành tích",
+        loading: "Đang tổng hợp dữ liệu trận đấu…",
+        rounds: "Số ván: {{count}}",
+        currentStreak: "Chuỗi hiện tại",
+        streakWins: "trận thắng",
+        streakLosses: "trận thua",
+        noStreak: "Chưa có chuỗi",
+        longestWin: "Chuỗi thắng tốt nhất",
+        longestLose: "Chuỗi thua dài nhất",
+        totalRounds: "Tổng số ván đã chơi",
+        timelineEmpty: "Chưa có dữ liệu theo thời gian với bộ lọc hiện tại.",
+        xp: "Kinh nghiệm: {{value}}",
+        gamesEmpty: "Chưa có trò chơi nào để hiển thị.",
+        gamesHeading: "Top trò chơi",
+        betTotal: "Cược: {{amount}} {{unit}}",
+        profitTotal: "Lợi nhuận: {{amount}}",
+        xpTotal: "Kinh nghiệm: {{value}}",
       },
       outcome: {
         win: "Thắng",
@@ -1196,6 +1963,61 @@ const translations = {
         markAll: "Đánh dấu tất cả đã đọc",
       },
     },
+    friends: {
+      header: {
+        accent: "Kết nối",
+        title: "Giữ liên lạc với bạn bè",
+        subtitle: "Quản lý lời mời, xem ai đang online và trò chuyện ngay lập tức.",
+      },
+      addForm: {
+        label: "Thêm bạn bằng tên người dùng",
+        placeholder: "Nhập tên người dùng…",
+        button: "Gửi lời mời",
+        helper: "Nhập chính xác username. Lời mời sẽ gửi ngay lập tức.",
+      },
+      requests: {
+        incoming: "Lời mời đến",
+        outgoing: "Đang chờ phản hồi",
+        accept: "Chấp nhận",
+        reject: "Từ chối",
+        cancel: "Hủy",
+        emptyIncoming: "Hiện chưa có lời mời nào.",
+        emptyOutgoing: "Bạn chưa gửi lời mời kết bạn nào.",
+      },
+      list: {
+        heading: "Danh sách bạn bè",
+        searchPlaceholder: "Tìm kiếm bạn bè…",
+        empty: "Hãy thêm bạn để bắt đầu trò chuyện.",
+  emptySearch: "Không tìm thấy bạn bè phù hợp với tìm kiếm.",
+        online: "Đang online",
+        offline: "Offline",
+        remove: "Xóa",
+      },
+      chat: {
+        heading: "Tin nhắn",
+        placeholder: "Nhập tin nhắn…",
+        send: "Gửi",
+        empty: "Chưa có tin nhắn nào — hãy bắt đầu trò chuyện!",
+        selectPrompt: "Chọn một người bạn để xem cuộc trò chuyện.",
+        loading: "Đang tải hội thoại…",
+        loadError: "Không thể tải hội thoại.",
+        loadPrevious: "Tải tin nhắn cũ",
+      },
+      status: {
+        pending: "Đang chờ",
+        accepted: "Bạn bè",
+      },
+      toasts: {
+        requestSent: "Đã gửi lời mời kết bạn",
+        requestAccepted: "Đã chấp nhận lời mời",
+        requestCanceled: "Đã hủy lời mời kết bạn",
+        friendRemoved: "Đã xóa bạn khỏi danh sách",
+        messageFailed: "Không thể gửi tin nhắn",
+      },
+      errors: {
+        load: "Không thể tải danh sách bạn bè.",
+      },
+    },
     rewardsPage: {
       header: {
         accent: "Trung tâm phần thưởng",
@@ -1203,6 +2025,8 @@ const translations = {
         subtitle:
           "Nhận thưởng định kỳ, điểm danh mỗi ngày và theo dõi mốc tăng cấp chỉ trong một giao diện.",
       },
+      loading: "Đang tải Rewards…",
+      loginRequired: "Vui lòng đăng nhập để xem Rewards.",
       tabs: {
         periodic: "Thưởng định kỳ",
         checkin: "Điểm danh hàng ngày",
@@ -1271,6 +2095,23 @@ const translations = {
           exp: "EXP cần thiết",
         },
       },
+      levelRewards: {
+        loading: "Đang tải thưởng cấp độ…",
+        error: "Không thể tải danh sách thưởng cấp độ lúc này.",
+        heading: "Thưởng tăng cấp",
+        currentLevel: "Cấp {{level}}",
+        levelLabel: "Cấp {{level}}",
+        claimed: "Đã nhận",
+        available: "Có thể nhận",
+        locked: "Chưa mở khóa",
+        rewardCoins: "{{amount}} {{unit}}",
+        rewardXp: "{{amount}} EXP",
+        claimButton: "Nhận thưởng",
+        claiming: "Đang nhận…",
+        toastClaimSuccess: "Bạn đã nhận thưởng cấp {{level}}!",
+        toastClaimError: "Hiện không thể nhận thưởng. Vui lòng thử lại.",
+        empty: "Chưa có thưởng cấp độ nào được thiết lập.",
+      },
     },
     games: {
       common: {
@@ -1283,6 +2124,7 @@ const translations = {
           "Lọc theo chế độ, so sánh mức cược tối thiểu và bắt đầu trận đấu công bằng.",
         explorerHint:
           "Duyệt danh mục bên dưới và xem trước chi tiết trước khi vào trận.",
+        loading: "Đang tải danh sách trò chơi…",
         viewSolo: "Sảnh Solo",
         viewBattle: "Sảnh PvP",
         emptyTitle: "Không tìm thấy trò chơi phù hợp với bộ lọc.",

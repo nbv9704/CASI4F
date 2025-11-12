@@ -10,6 +10,7 @@ const ErrorCodes = {
   AUTH_TOKEN_MISSING: 'AUTH_TOKEN_MISSING',
   AUTH_TOKEN_INVALID: 'AUTH_TOKEN_INVALID',
   AUTH_TOKEN_EXPIRED: 'AUTH_TOKEN_EXPIRED',
+  AUTH_TOKEN_INVALID_USER_ID: 'AUTH_TOKEN_INVALID_USER_ID',
   AUTH_INVALID_CREDENTIALS: 'AUTH_INVALID_CREDENTIALS',
   AUTH_USER_EXISTS: 'AUTH_USER_EXISTS',
 
@@ -18,6 +19,15 @@ const ErrorCodes = {
   USER_DUPLICATE_USERNAME: 'USER_DUPLICATE_USERNAME',
   USER_DUPLICATE_EMAIL: 'USER_DUPLICATE_EMAIL',
   USER_INVALID_PASSWORD: 'USER_INVALID_PASSWORD',
+
+  // === PROFILE ===
+  PROFILE_NOT_FOUND: 'PROFILE_NOT_FOUND',
+  PROFILE_NOT_VISIBLE: 'PROFILE_NOT_VISIBLE',
+  PROFILE_BADGE_NOT_OWNED: 'PROFILE_BADGE_NOT_OWNED',
+  PROFILE_ACHIEVEMENT_NOT_UNLOCKED: 'PROFILE_ACHIEVEMENT_NOT_UNLOCKED',
+  PROFILE_SHOWCASE_LIMIT: 'PROFILE_SHOWCASE_LIMIT',
+  PROFILE_SHOWCASE_DUPLICATE: 'PROFILE_SHOWCASE_DUPLICATE',
+  PROFILE_SOCIAL_LINK_INVALID: 'PROFILE_SOCIAL_LINK_INVALID',
 
   // === WALLET & BALANCE ===
   INSUFFICIENT_BALANCE: 'INSUFFICIENT_BALANCE',
@@ -54,6 +64,17 @@ const ErrorCodes = {
   INVALID_OBJECT_ID: 'INVALID_OBJECT_ID',
   MISSING_PARAMETER: 'MISSING_PARAMETER',
 
+  // === SOCIAL / FRIENDS ===
+  FRIEND_SELF_REQUEST: 'FRIEND_SELF_REQUEST',
+  FRIEND_ALREADY_REQUESTED: 'FRIEND_ALREADY_REQUESTED',
+  FRIEND_ALREADY_EXISTS: 'FRIEND_ALREADY_EXISTS',
+  FRIEND_REQUEST_NOT_FOUND: 'FRIEND_REQUEST_NOT_FOUND',
+  FRIEND_NOT_FOUND: 'FRIEND_NOT_FOUND',
+  FRIEND_INVALID_TARGET: 'FRIEND_INVALID_TARGET',
+  CHAT_MESSAGE_EMPTY: 'CHAT_MESSAGE_EMPTY',
+  CHAT_MESSAGE_TOO_LONG: 'CHAT_MESSAGE_TOO_LONG',
+  CHAT_NOT_ALLOWED: 'CHAT_NOT_ALLOWED',
+
   // === RATE LIMITING ===
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
   RATE_LIMIT_AUTH: 'RATE_LIMIT_AUTH',
@@ -74,6 +95,7 @@ const ErrorMessages = {
   [ErrorCodes.AUTH_TOKEN_MISSING]: 'Không tìm thấy token xác thực',
   [ErrorCodes.AUTH_TOKEN_INVALID]: 'Token xác thực không hợp lệ',
   [ErrorCodes.AUTH_TOKEN_EXPIRED]: 'Token xác thực đã hết hạn',
+  [ErrorCodes.AUTH_TOKEN_INVALID_USER_ID]: 'Token xác thực không hợp lệ',
   [ErrorCodes.AUTH_INVALID_CREDENTIALS]: 'Tên đăng nhập hoặc mật khẩu không đúng',
   [ErrorCodes.AUTH_USER_EXISTS]: 'Tài khoản đã tồn tại',
 
@@ -81,6 +103,14 @@ const ErrorMessages = {
   [ErrorCodes.USER_DUPLICATE_USERNAME]: 'Tên người dùng đã tồn tại',
   [ErrorCodes.USER_DUPLICATE_EMAIL]: 'Email đã được sử dụng',
   [ErrorCodes.USER_INVALID_PASSWORD]: 'Mật khẩu không đúng',
+
+  [ErrorCodes.PROFILE_NOT_FOUND]: 'Không tìm thấy hồ sơ người chơi',
+  [ErrorCodes.PROFILE_NOT_VISIBLE]: 'Hồ sơ này đang được đặt ở chế độ riêng tư',
+  [ErrorCodes.PROFILE_BADGE_NOT_OWNED]: 'Bạn chưa sở hữu huy hiệu này',
+  [ErrorCodes.PROFILE_ACHIEVEMENT_NOT_UNLOCKED]: 'Bạn chưa mở khóa thành tựu này',
+  [ErrorCodes.PROFILE_SHOWCASE_LIMIT]: 'Bạn chỉ có thể ghim tối đa 3 thành tựu',
+  [ErrorCodes.PROFILE_SHOWCASE_DUPLICATE]: 'Thành tựu được ghim không được trùng nhau',
+  [ErrorCodes.PROFILE_SOCIAL_LINK_INVALID]: 'Liên kết mạng xã hội không hợp lệ',
 
   [ErrorCodes.INSUFFICIENT_BALANCE]: 'Số dư không đủ',
   [ErrorCodes.INSUFFICIENT_BANK_BALANCE]: 'Số dư ngân hàng không đủ',
@@ -97,6 +127,16 @@ const ErrorMessages = {
   [ErrorCodes.INVALID_INPUT]: 'Dữ liệu đầu vào không hợp lệ',
   [ErrorCodes.RATE_LIMIT_EXCEEDED]: 'Quá nhiều yêu cầu, vui lòng thử lại sau',
   [ErrorCodes.INTERNAL_ERROR]: 'Lỗi hệ thống, vui lòng thử lại sau',
+
+  [ErrorCodes.FRIEND_SELF_REQUEST]: 'Bạn không thể kết bạn với chính mình',
+  [ErrorCodes.FRIEND_ALREADY_REQUESTED]: 'Yêu cầu kết bạn đã được gửi trước đó',
+  [ErrorCodes.FRIEND_ALREADY_EXISTS]: 'Hai bạn đã là bạn bè',
+  [ErrorCodes.FRIEND_REQUEST_NOT_FOUND]: 'Không tìm thấy yêu cầu kết bạn',
+  [ErrorCodes.FRIEND_NOT_FOUND]: 'Không tìm thấy người dùng mục tiêu',
+  [ErrorCodes.FRIEND_INVALID_TARGET]: 'Không thể xử lý người dùng này',
+  [ErrorCodes.CHAT_MESSAGE_EMPTY]: 'Tin nhắn không được để trống',
+  [ErrorCodes.CHAT_MESSAGE_TOO_LONG]: 'Tin nhắn quá dài',
+  [ErrorCodes.CHAT_NOT_ALLOWED]: 'Bạn không thể nhắn tin cho người này',
 };
 
 module.exports = {

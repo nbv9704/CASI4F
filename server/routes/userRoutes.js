@@ -2,12 +2,38 @@
 const express    = require('express');
 const bcrypt     = require('bcryptjs');
 const router     = express.Router();
+const { DateTime } = require('luxon');
 
 const auth       = require('../middleware/auth');
 const adminOnly  = require('../middleware/admin');
 const validateObjectId = require('../middleware/validateObjectId');
 const User       = require('../models/User');
 const { AppError } = require('../utils/AppError');
+
+const DEFAULT_TIMEZONE = process.env.DEFAULT_USER_TIMEZONE || 'Asia/Ho_Chi_Minh';
+
+const normalizeTimeZone = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const probe = DateTime.now().setZone(trimmed);
+  return probe.isValid ? trimmed : null;
+};
+
+const clearExpiredStatusMessage = (userDoc) => {
+  if (!userDoc || !userDoc.statusMessage || !userDoc.statusMessageExpiresAt) {
+    return false;
+  }
+
+  const expiresAt = new Date(userDoc.statusMessageExpiresAt);
+  if (Number.isNaN(expiresAt.getTime()) || expiresAt > new Date()) {
+    return false;
+  }
+
+  userDoc.statusMessage = '';
+  userDoc.statusMessageExpiresAt = null;
+  return true;
+};
 
 // ADMIN: Get all users
 router.get('/', auth, adminOnly, async (req, res, next) => {
@@ -24,6 +50,11 @@ router.get('/me', auth, async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
     if (!user) throw new AppError('USER_NOT_FOUND', 404, 'User not found');
+
+    if (clearExpiredStatusMessage(user)) {
+      await user.save();
+    }
+
     res.json(user);
   } catch (err) {
     next(err);
@@ -44,7 +75,7 @@ router.get('/:id', auth, validateObjectId('id'), async (req, res, next) => {
 // UPDATE profile (self)
 router.patch('/me', auth, async (req, res, next) => {
   try {
-    const { username, email, avatar, dateOfBirth, currentPassword } = req.body;
+  const { username, email, avatar, dateOfBirth, currentPassword, timeZone } = req.body;
 
     if (!currentPassword) {
       throw new AppError('INVALID_INPUT', 400, 'Current password is required');
@@ -62,6 +93,13 @@ router.patch('/me', auth, async (req, res, next) => {
     if (email) user.email = email;
     if (avatar !== undefined) user.avatar = avatar;
     if (dateOfBirth !== undefined) user.dateOfBirth = dateOfBirth;
+    if (timeZone !== undefined) {
+      const normalized = normalizeTimeZone(timeZone) || normalizeTimeZone(DEFAULT_TIMEZONE);
+      if (!normalized) {
+        throw new AppError('INVALID_TIME_ZONE', 400, 'Invalid time zone');
+      }
+      user.timeZone = normalized;
+    }
 
     await user.save();
 

@@ -3,11 +3,21 @@ const rateLimit = require('express-rate-limit');
 
 /**
  * Strict rate limiters for sensitive endpoints
+ *
+ * In development we often need to bypass these limits to unblock testing.
+ * The limiter stays enabled automatically in production or whenever the
+ * environment variable ENABLE_STRICT_RATE_LIMIT is explicitly set to "true".
  */
+
+const noop = (req, res, next) => next();
+const isProd = process.env.NODE_ENV === 'production';
+const shouldEnable = isProd || process.env.ENABLE_STRICT_RATE_LIMIT === 'true';
+
+const maybeLimit = (config) => (shouldEnable ? rateLimit(config) : noop);
 
 // Auth endpoints: Login/Register
 // 5 attempts per 15 minutes per IP
-const authLimiter = rateLimit({
+const authLimiter = maybeLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5,
   message: {
@@ -22,7 +32,7 @@ const authLimiter = rateLimit({
 
 // Wallet transfer endpoint
 // 10 transfers per 5 minutes per user
-const transferLimiter = rateLimit({
+const transferLimiter = maybeLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
   max: 10,
   message: {
@@ -36,7 +46,7 @@ const transferLimiter = rateLimit({
 
 // Game action endpoints (all solo games + PvP)
 // 60 actions per 1 minute per user (allows for fast gameplay like Tower with 15+ ascends)
-const pvpActionLimiter = rateLimit({
+const pvpActionLimiter = maybeLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 60,
   message: {
@@ -49,7 +59,7 @@ const pvpActionLimiter = rateLimit({
 });
 
 // Room creation: 5 rooms per 10 minutes per user
-const createRoomLimiter = rateLimit({
+const createRoomLimiter = maybeLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
   max: 5,
   message: {

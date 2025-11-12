@@ -2,23 +2,51 @@
 const Notification = require('../models/Notification')
 
 /**
- * Lưu notification vào DB và emit real-time qua socket.io
- * @param {Express.App} app  – your express app instance
- * @param {String} userId    – Mongo _id của user
- * @param {String} type      – notification type
- * @param {String} message   – nội dung thông báo
+ * Persist a notification and emit it to all active sockets for the user.
+ * @param {import('express').Express} app - Express application instance (for socket registry)
+ * @param {string|import('mongoose').Types.ObjectId} userId - Target user id
+ * @param {string} type - Notification type identifier
+ * @param {string} message - Human readable message
+ * @param {{ metadata?: object, link?: string }} [options] - Optional payload extensions
+ * @returns {Promise<object>} The serialized notification payload that was emitted
  */
-async function pushNotification(app, userId, type, message) {
-  // 1. Lưu DB
-  const notif = await Notification.create({ userId, type, message })
+async function pushNotification(app, userId, type, message, options = {}) {
+  if (!app) return null
 
-  // 2. Emit real-time
+  const payload = {
+    userId,
+    type,
+    message,
+    read: false,
+  }
+
+  if (options.link) payload.link = options.link
+  if (options.metadata) payload.metadata = options.metadata
+
+  const notif = await Notification.create(payload)
+
   const io = app.get('io')
+  if (!io) return notif
+
   const onlineUsers = app.get('onlineUsers') || {}
-  const sockets = onlineUsers[userId] || []
-  sockets.forEach(socketId => {
-    io.to(socketId).emit('notification', notif)
+  const sockets = onlineUsers[String(userId)] || []
+  const serialized = {
+    _id: String(notif._id),
+    userId: String(notif.userId),
+    type: notif.type,
+    message: notif.message,
+    read: notif.read,
+    createdAt: notif.createdAt,
+    link: notif.link,
+    metadata: notif.metadata,
+    serverNow: Date.now(),
+  }
+
+  sockets.forEach((socketId) => {
+    io.to(socketId).emit('notification', serialized)
   })
+
+  return serialized
 }
 
 module.exports = { pushNotification }

@@ -16,13 +16,14 @@ const DEFAULT_INITIAL = 10
 exports.getState = async (req, res) => {
   try {
     const userId = req.user.id
-    const user = await User.findById(userId).select('higherLowerLastNumber higherLowerStreak')
+    const user = await User.findById(userId).select('higherLowerLastNumber higherLowerStreak higherLowerBaseBet')
     
     if (!user) return res.status(404).json({ error: 'User not found' })
 
     return res.json({
       lastNumber: user.higherLowerLastNumber ?? DEFAULT_INITIAL,
-      streak: user.higherLowerStreak || 0
+      streak: user.higherLowerStreak || 0,
+      lockedBet: user.higherLowerBaseBet || 0
     })
   } catch (err) {
     console.error(err)
@@ -54,6 +55,21 @@ exports.higherLower = async (req, res) => {
       return res.status(400).json({ error: 'Insufficient balance' })
     }
 
+    // ✅ ANTI-EXPLOIT: Lock bet amount during active streak
+    const currentStreak = user.higherLowerStreak || 0
+    const lockedBet = user.higherLowerBaseBet || 0
+    
+    if (currentStreak > 0 && lockedBet > 0) {
+      // Streak is active - must use the same bet amount
+      if (betAmount !== lockedBet) {
+        return res.status(400).json({ 
+          error: `Streak is active. You must bet ${lockedBet} coins to continue.`,
+          lockedBet,
+          currentStreak
+        })
+      }
+    }
+
     // Determine initial number
     const initial = typeof user.higherLowerLastNumber === 'number'
       ? user.higherLowerLastNumber
@@ -73,16 +89,23 @@ exports.higherLower = async (req, res) => {
     // Compute payout and streak
     let payout = 0
     let newStreak = user.higherLowerStreak || 0
+    let newBaseBet = 0
     
     if (tie) {
+      // Tie: reset streak but keep current bet for next round
       newStreak = 0
+      newBaseBet = 0
     } else if (win) {
+      // Win: increment streak
       newStreak += 1
       const multiplier = newStreak * MULTIPLIER_STEP
       payout = betAmount * multiplier
+      // Lock this bet amount for the streak
+      newBaseBet = betAmount
     } else {
-      // lose
+      // Lose: reset everything
       newStreak = 0
+      newBaseBet = 0
     }
 
     // Calculate balance change
@@ -95,18 +118,19 @@ exports.higherLower = async (req, res) => {
     
     try {
       await session.withTransaction(async () => {
-        // Atomic update: balance, streak, and last number
+        // Atomic update: balance, streak, last number, and base bet
         const updatedUser = await User.findByIdAndUpdate(
           userId,
           { 
             $inc: { balance: delta },
             $set: { 
               higherLowerStreak: newStreak,
-              higherLowerLastNumber: next
+              higherLowerLastNumber: next,
+              higherLowerBaseBet: newBaseBet
             }
           },
           { new: true, session }
-        ).select('balance higherLowerStreak')
+        ).select('balance higherLowerStreak higherLowerBaseBet')
 
         if (!updatedUser) {
           throw new Error('User not found during transaction')
@@ -147,10 +171,47 @@ exports.higherLower = async (req, res) => {
       tie,
       win,
       streak: updatedStreak,
+      lockedBet: newBaseBet,  // Return the locked bet for client to display
       payout,
       amount,              // ← thêm trường amount
       balance: updatedBalance,
       experience: experienceMeta
+    })
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'Server error' })
+  }
+}
+
+/**
+ * POST /api/game/higherlower/stop
+ * Allows the player to end the current streak voluntarily.
+ */
+exports.stopHigherLower = async (req, res) => {
+  try {
+    const userId = req.user.id
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          higherLowerStreak: 0,
+          higherLowerBaseBet: 0,
+          higherLowerLastNumber: DEFAULT_INITIAL,
+        },
+      },
+      { new: true }
+    ).select('higherLowerLastNumber')
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+
+    return res.json({
+      message: 'Streak ended',
+      lastNumber: updatedUser.higherLowerLastNumber ?? DEFAULT_INITIAL,
+      streak: 0,
+      lockedBet: 0,
     })
   } catch (err) {
     console.error(err)

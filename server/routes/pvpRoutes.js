@@ -13,6 +13,8 @@ const { startDicePoker } = require('../controllers/pvp/dicePokerController');
 const { startBlackjackDice, hitBlackjackDice, standBlackjackDice } = require('../controllers/pvp/blackjackDiceController');
 const { logBalanceChange } = require('../utils/balanceLog');
 const { recordGameHistory } = require('../utils/history');
+const { pushNotification } = require('../utils/notify');
+const { sendAchievementNotifications } = require('../utils/achievements');
 const asyncHandler = require('../middleware/asyncHandler');
 const validateRequest = require('../middleware/validateRequest');
 
@@ -31,6 +33,7 @@ const {
 // ✅ Import strict rate limiters
 const { pvpActionLimiter, createRoomLimiter } = require('../middleware/rateLimitStrict');
 const idem = require('../middleware/idempotency');
+const ensureGameEnabled = require('../middleware/ensureGameEnabled');
 
 const router = express.Router();
 const getIO = (req) => req.app.get('io');
@@ -42,6 +45,7 @@ const HOLD_AFTER_REVEAL_MS = 3000;
 
 // ✅ Rate limit entire router (lighter limit)
 router.use(pvpActionLimiter);
+router.use(ensureGameEnabled());
 
 // ===== Helpers (unchanged) =====
 const ALPHANUM = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -106,7 +110,7 @@ function markIdem(md, type, id, cap = 100) {
   }
 }
 
-async function recordBattleResults({ session, game, betAmount, results }) {
+async function recordBattleResults({ session, game, betAmount, results }, app) {
   if (!Array.isArray(results) || !results.length) {
     return;
   }
@@ -116,8 +120,7 @@ async function recordBattleResults({ session, game, betAmount, results }) {
     const userId = String(entry.userId);
     const payout = Number(entry.payout ?? 0);
     const outcome = entry.outcome || 'lose';
-
-    await recordGameHistory(
+    const historyResult = await recordGameHistory(
       {
         userId,
         game,
@@ -127,6 +130,42 @@ async function recordBattleResults({ session, game, betAmount, results }) {
       },
       session
     );
+
+    // Send a lightweight real-time notification to the participant (best-effort)
+    try {
+      if (app && typeof pushNotification === 'function') {
+        const type = outcome === 'win' ? 'game_win' : outcome === 'draw' ? 'game_draw' : 'game_loss';
+        const prettyAmount = typeof payout === 'number' ? String(payout) : '';
+        const message =
+          outcome === 'win'
+            ? `You won ${prettyAmount} on ${game}`
+            : outcome === 'draw'
+            ? `Round ended in a draw on ${game}. Your bet was returned.`
+            : `You lost ${betAmount} on ${game}`;
+
+        // fire-and-forget
+        pushNotification(app, userId, type, message).catch(() => {});
+      }
+
+      const experience = historyResult?.experience;
+      if (experience?.leveledUp) {
+        const level = experience.level ?? 'mới';
+        pushNotification(
+          app,
+          userId,
+          'level_up',
+          `Chúc mừng! Bạn đã đạt cấp ${level}.`
+        ).catch(() => {});
+      }
+
+      const achievements =
+        historyResult?.achievementsUnlocked || experience?.achievementsUnlocked || [];
+      if (achievements.length) {
+        sendAchievementNotifications(app, userId, achievements);
+      }
+    } catch (err) {
+      // swallow - notifications are best-effort
+    }
   }
 }
 
@@ -504,7 +543,7 @@ router.post(
                 game: 'coinflip_battle',
                 betAmount: bet2,
                 results,
-              });
+              }, req.app);
             } else {
               const results = participantIds.map((id) => ({ userId: id, outcome: 'draw', payout: bet2 }));
               await recordBattleResults({
@@ -512,7 +551,7 @@ router.post(
                 game: 'coinflip_battle',
                 betAmount: bet2,
                 results,
-              });
+              }, req.app);
             }
 
             rDoc.status = 'finished';
@@ -613,7 +652,7 @@ router.post(
             game: 'dicepoker_battle',
             betAmount: bet,
             results,
-          });
+          }, req.app);
         });
       } finally {
         await session.endSession();
@@ -784,7 +823,7 @@ router.post(
                 game: 'dice_battle',
                 betAmount: bet2,
                 results,
-              });
+              }, req.app);
 
               rDoc.status = 'finished';
               rDoc.winnerUserId = null;
@@ -881,7 +920,7 @@ router.post(
             game: 'blackjackdice_battle',
             betAmount: bet,
             results,
-          });
+          }, req.app);
         });
       } finally {
         await session.endSession();
@@ -958,7 +997,7 @@ router.post(
             game: 'blackjackdice_battle',
             betAmount: bet,
             results,
-          });
+          }, req.app);
         });
       } finally {
         await session.endSession();

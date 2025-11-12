@@ -8,24 +8,13 @@ const validateRequest = require('../middleware/validateRequest');
 const asyncHandler = require('../middleware/asyncHandler');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
-const Notification = require('../models/Notification');
+const { pushNotification: emitNotification } = require('../utils/notify');
 const { AppError } = require('../utils/AppError');
 const { ErrorCodes, ErrorMessages } = require('../utils/ErrorCodes');
 const { transferLimiter } = require('../middleware/rateLimitStrict');
 
 // ✅ Import validation schemas
 const { depositSchema, withdrawSchema, transferSchema } = require('../validation/walletSchemas');
-
-// Helper: create & emit notification
-async function pushNotification(req, userId, type, message) {
-  const notif = await Notification.create({ userId, type, message });
-  const io = req.app.get('io');
-  const onlineUsers = req.app.get('onlineUsers');
-  const sockets = onlineUsers[userId] || [];
-  sockets.forEach((socketId) => {
-    io.to(socketId).emit('notification', notif);
-  });
-}
 
 // POST /api/wallet/:id/bank/deposit
 // 🔒 Uses MongoDB transaction for atomicity
@@ -69,7 +58,21 @@ router.post(
       await session.commitTransaction();
 
       // Send notification after commit (outside transaction)
-      await pushNotification(req, user._id, 'deposit', `Bạn đã nạp ${amount} từ Tài khoản vào Ngân hàng`);
+      await emitNotification(
+        req.app,
+        user._id,
+        'deposit',
+        `Bạn đã nạp ${amount} từ Tài khoản vào Ngân hàng`,
+        {
+          metadata: {
+            amount,
+            source: 'wallet_deposit',
+            walletBalance: user.balance,
+            bankBalance: user.bank,
+          },
+          link: '/wallet',
+        }
+      );
 
       res.json({ balance: user.balance, bank: user.bank });
     } catch (error) {
@@ -123,7 +126,21 @@ router.post(
       await session.commitTransaction();
 
       // Send notification after commit (outside transaction)
-      await pushNotification(req, user._id, 'withdraw', `Bạn đã rút ${amount} từ Ngân hàng về Tài khoản`);
+      await emitNotification(
+        req.app,
+        user._id,
+        'withdraw',
+        `Bạn đã rút ${amount} từ Ngân hàng về Tài khoản`,
+        {
+          metadata: {
+            amount,
+            source: 'wallet_withdraw',
+            walletBalance: user.balance,
+            bankBalance: user.bank,
+          },
+          link: '/wallet',
+        }
+      );
 
       res.json({ balance: user.balance, bank: user.bank });
     } catch (error) {
@@ -183,29 +200,65 @@ router.post(
       await fromUser.save({ session });
       await toUser.save({ session });
 
-      // Create both transaction records atomically
-      await Transaction.create([
-        {
-          userId: fromUser._id,
-          type: 'transfer',
-          amount,
-          toUserId: toUser._id,
-          createdAt: new Date(),
-        },
-        {
-          userId: toUser._id,
-          type: 'transfer',
-          amount,
-          fromUserId: fromUser._id,
-          createdAt: new Date(),
-        }
-      ], { session });
+      // Create both transaction records atomically (ordered insert required when using sessions)
+      const timestamp = new Date();
+      await Transaction.create(
+        [
+          {
+            userId: fromUser._id,
+            type: 'transfer',
+            amount,
+            toUserId: toUser._id,
+            createdAt: timestamp,
+          },
+          {
+            userId: toUser._id,
+            type: 'transfer',
+            amount,
+            fromUserId: fromUser._id,
+            createdAt: timestamp,
+          },
+        ],
+        { session, ordered: true }
+      );
 
       await session.commitTransaction();
 
       // Send notifications after commit (outside transaction)
-      await pushNotification(req, fromUser._id, 'transfer_sent', `Bạn đã chuyển ${amount} cho ${toUser.username}`);
-      await pushNotification(req, toUser._id, 'transfer_received', `Bạn đã nhận ${amount} từ ${fromUser.username}`);
+      await emitNotification(
+        req.app,
+        fromUser._id,
+        'transfer_sent',
+        `Bạn đã chuyển ${amount} cho ${toUser.username}`,
+        {
+          metadata: {
+            amount,
+            direction: 'outbound',
+            counterpartyId: String(toUser._id),
+            counterparty: toUser.username,
+            walletBalance: fromUser.balance,
+            bankBalance: fromUser.bank,
+          },
+          link: '/wallet',
+        }
+      );
+      await emitNotification(
+        req.app,
+        toUser._id,
+        'transfer_received',
+        `Bạn đã nhận ${amount} từ ${fromUser.username}`,
+        {
+          metadata: {
+            amount,
+            direction: 'inbound',
+            counterpartyId: String(fromUser._id),
+            counterparty: fromUser.username,
+            walletBalance: toUser.balance,
+            bankBalance: toUser.bank,
+          },
+          link: '/wallet',
+        }
+      );
 
       res.json({ fromBalance: fromUser.balance, toBalance: toUser.balance });
     } catch (error) {

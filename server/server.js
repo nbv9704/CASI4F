@@ -18,6 +18,7 @@ const mongoSanitizeCustom = require('./middleware/mongoSanitize');
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const profileRoutes = require('./routes/profileRoutes');
 const historyRoutes = require('./routes/historyRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const gameRoutes = require('./routes/gameRoutes');
@@ -26,9 +27,11 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const pvpRoutes = require('./routes/pvpRoutes');
 const fairRoutes = require('./routes/fairRoutes');
 const registerPvpSocket = require('./socket/pvp');
-const { router: adminPvpRouter } = require('./routes/adminPvpRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const rankingRoutes = require('./routes/rankingRoutes');
+const socialRoutes = require('./routes/socialRoutes');
 const { schedulePvpCleanup, stopPvpCleanup } = require('./cron/cleanupRooms');
+const { scheduleDailyRewardReminder, stopDailyRewardReminder } = require('./cron/dailyRewardReminder');
 
 // ✅ Import middleware
 const logRequest = require('./middleware/logRequest');
@@ -152,14 +155,16 @@ app.use(logRequest);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', historyRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/profile', profileRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/rewards', rewardRoutes);
 app.use('/api/notification', notificationRoutes);
 app.use('/api/pvp', pvpRoutes);
 app.use('/api/fair', fairRoutes);
-app.use('/api/admin/pvp', adminPvpRouter);
+app.use('/api/admin', adminRoutes);
 app.use('/api/rankings', rankingRoutes);
+app.use('/api/social', socialRoutes);
 
 app.get('/', (req, res) => {
   res.send('Cado4fun backend running!');
@@ -226,6 +231,7 @@ mongoose
 
 // Schedule PvP cleanup
 schedulePvpCleanup(app);
+scheduleDailyRewardReminder(app);
 
 // ✅ Error handler MUST be last
 app.use(errorHandler);
@@ -240,6 +246,7 @@ async function shutdown(signal) {
   try {
     console.log(`[${signal}] Shutting down...`);
     stopPvpCleanup();
+  stopDailyRewardReminder();
     io.close(() => console.log('Socket.IO closed'));
     await mongoose.connection.close(false);
     http.close?.(() => console.log('HTTP server closed'));

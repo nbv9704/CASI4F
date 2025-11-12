@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
@@ -27,13 +28,19 @@ function getInitial(username) {
   return username.charAt(0).toUpperCase();
 }
 
+const passthroughLoader = ({ src }) => src;
+
 function buildAvatar(user) {
   if (user?.avatar) {
     return (
-      <img
+      <Image
         src={user.avatar}
         alt={user.username || "avatar"}
+        width={36}
+        height={36}
         className="h-9 w-9 rounded-full object-cover"
+        loader={passthroughLoader}
+        unoptimized
       />
     );
   }

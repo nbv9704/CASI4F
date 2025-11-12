@@ -1,7 +1,7 @@
 // client/src/app/admin/metrics/page.js
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/context/UserContext";
 import useApi from "@/hooks/useApi";
@@ -30,28 +30,7 @@ export default function SystemMetricsPage() {
   const [pvpHealth, setPvpHealth] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  useEffect(() => {
-    if (user && user.role !== "admin") {
-      router.push("/");
-      return;
-    }
-
-    if (user) {
-      loadMetrics();
-    }
-  }, [user, router]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const interval = setInterval(() => {
-      loadMetrics();
-    }, 10000); // Refresh every 10s
-
-    return () => clearInterval(interval);
-  }, [autoRefresh]);
-
-  const loadMetrics = async () => {
+  const loadMetrics = useCallback(async () => {
     try {
       const [metricsData, pvpData] = await Promise.all([
         get("/admin/metrics"),
@@ -64,7 +43,28 @@ export default function SystemMetricsPage() {
       console.error("Failed to load metrics:", err);
       setLoading(false);
     }
-  };
+  }, [get]);
+
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.push("/");
+      return;
+    }
+
+    if (user) {
+      loadMetrics();
+    }
+  }, [user, router, loadMetrics]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const interval = setInterval(() => {
+      loadMetrics();
+    }, 10000); // Refresh every 10s
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, loadMetrics]);
 
   // PVP Health computed values
   const lastSweepText = useMemo(() => {

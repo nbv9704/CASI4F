@@ -1,7 +1,7 @@
 // client/src/app/admin/users/page.js
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/context/UserContext";
 import useApi from "@/hooks/useApi";
@@ -32,39 +32,7 @@ export default function UserManagementPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ balance: 0, level: 1, role: "user" });
 
-  useEffect(() => {
-    if (user && user.role !== "admin") {
-      router.push("/");
-      return;
-    }
-
-    if (user) {
-      loadUsers();
-    }
-  }, [user, router]);
-
-  useEffect(() => {
-    let filtered = users;
-
-    // Filter by role
-    if (roleFilter !== "all") {
-      filtered = filtered.filter((u) => u.role === roleFilter);
-    }
-
-    // Filter by search
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filtered = filtered.filter(
-        (u) =>
-          u.username.toLowerCase().includes(searchLower) ||
-          u.email.toLowerCase().includes(searchLower)
-      );
-    }
-
-    setFilteredUsers(filtered);
-  }, [users, search, roleFilter]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
       const data = await get("/admin/users");
@@ -74,7 +42,41 @@ export default function UserManagementPage() {
       console.error("Failed to load users:", err);
       setLoading(false);
     }
-  };
+  }, [get]);
+
+  const filteredUsersMemo = useMemo(() => {
+    let filtered = users;
+
+    if (roleFilter !== "all") {
+      filtered = filtered.filter((u) => u.role === roleFilter);
+    }
+
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(
+        (u) =>
+          u.username.toLowerCase().includes(searchLower) ||
+          u.email.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return filtered;
+  }, [roleFilter, search, users]);
+
+  useEffect(() => {
+    setFilteredUsers(filteredUsersMemo);
+  }, [filteredUsersMemo]);
+
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.push("/");
+      return;
+    }
+
+    if (user) {
+      loadUsers();
+    }
+  }, [user, router, loadUsers]);
 
   const handleEdit = (user) => {
     setSelectedUser(user);

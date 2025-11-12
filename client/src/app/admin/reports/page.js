@@ -1,7 +1,7 @@
 // client/src/app/admin/reports/page.js
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/context/UserContext";
 import useApi from "@/hooks/useApi";
@@ -26,18 +26,7 @@ export default function AdminReportsPage() {
   const [reports, setReports] = useState(null);
   const [timeRange, setTimeRange] = useState("7d");
 
-  useEffect(() => {
-    if (user && user.role !== "admin") {
-      router.push("/");
-      return;
-    }
-
-    if (user) {
-      loadReports();
-    }
-  }, [user, router, timeRange]);
-
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
     try {
       setLoading(true);
       const data = await get(`/admin/reports?range=${timeRange}`);
@@ -47,7 +36,18 @@ export default function AdminReportsPage() {
       console.error("Failed to load reports:", err);
       setLoading(false);
     }
-  };
+  }, [get, timeRange]);
+
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.push("/");
+      return;
+    }
+
+    if (user) {
+      loadReports();
+    }
+  }, [user, router, loadReports]);
 
   const exportReport = (reportType) => {
     const timestamp = new Date().toISOString();

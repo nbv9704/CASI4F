@@ -1,7 +1,7 @@
 // client/src/app/admin/transactions/page.js
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/context/UserContext";
 import useApi from "@/hooks/useApi";
@@ -33,22 +33,7 @@ export default function TransactionMonitoringPage() {
   const [dateFilter, setDateFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
 
-  useEffect(() => {
-    if (user && user.role !== "admin") {
-      router.push("/");
-      return;
-    }
-
-    if (user) {
-      loadTransactions();
-    }
-  }, [user, router]);
-
-  useEffect(() => {
-    applyFilters();
-  }, [transactions, search, typeFilter, dateFilter, sortBy]);
-
-  const loadTransactions = async () => {
+  const loadTransactions = useCallback(async () => {
     try {
       setLoading(true);
       const data = await get("/admin/transactions");
@@ -59,9 +44,9 @@ export default function TransactionMonitoringPage() {
       console.error("Failed to load transactions:", err);
       setLoading(false);
     }
-  };
+  }, [get]);
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...transactions];
 
     // Type filter
@@ -105,7 +90,22 @@ export default function TransactionMonitoringPage() {
     }
 
     setFilteredTxs(filtered);
-  };
+  }, [dateFilter, search, sortBy, transactions, typeFilter]);
+
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.push("/");
+      return;
+    }
+
+    if (user) {
+      loadTransactions();
+    }
+  }, [user, router, loadTransactions]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   const exportToCSV = () => {
     const headers = ["Date", "User", "Type", "Amount", "Balance After", "Description"];

@@ -1,7 +1,7 @@
 // client/src/app/admin/games/page.js
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/context/UserContext";
 import useApi from "@/hooks/useApi";
@@ -109,18 +109,7 @@ export default function GameConfigurationPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
 
-  useEffect(() => {
-    if (user && user.role !== "admin") {
-      router.push("/");
-      return;
-    }
-
-    if (user) {
-      loadConfigs();
-    }
-  }, [user, router]);
-
-  const loadConfigs = async () => {
+  const loadConfigs = useCallback(async () => {
     try {
       setLoading(true);
       const data = await get("/admin/games/config");
@@ -132,7 +121,18 @@ export default function GameConfigurationPage() {
       console.error("Failed to load game configs:", err);
       setLoading(false);
     }
-  };
+  }, [get]);
+
+  useEffect(() => {
+    if (user && user.role !== "admin") {
+      router.push("/");
+      return;
+    }
+
+    if (user) {
+      loadConfigs();
+    }
+  }, [user, router, loadConfigs]);
 
   const handleChange = (gameId, field, value) => {
     setGameConfigs((prev) =>
@@ -334,7 +334,7 @@ export default function GameConfigurationPage() {
                 <li>• Disabled games will not be accessible to players</li>
                 <li>• Multiplier affects maximum possible winnings</li>
                 <li>• Bet limits help control risk and bankroll management</li>
-                <li>• Use "Reset to Default" to restore recommended settings</li>
+                <li>• Use &quot;Reset to Default&quot; to restore recommended settings</li>
               </ul>
             </div>
           </div>
